@@ -9,6 +9,11 @@ const { syncProducts } = require('./services/syncService');
 const chatRoutes = require('./routes/chat');
 const productRoutes = require('./routes/products');
 const imageRoutes = require('./routes/images');
+const adminAuthRoutes = require('./routes/adminAuth');
+const authRoutes = require('./routes/auth');
+const adminUserRoutes = require('./routes/adminUsers');
+const menuRoutes = require('./routes/menu');
+const dashboardRoutes = require('./routes/dashboard');
 
 const app = express();
 
@@ -30,6 +35,11 @@ app.get('/health', (req, res) => res.json({ status: 'ok' }));
 app.use('/api/chat', chatRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/images', imageRoutes);
+app.use('/api/admin', adminAuthRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/admin/users', adminUserRoutes);
+app.use('/api/menu', menuRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 app.use(errorHandler);
 
