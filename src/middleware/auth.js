@@ -1,6 +1,11 @@
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'printassistance_secret_key';
+if (!process.env.JWT_SECRET) {
+  console.error('[FATAL] JWT_SECRET environment variable is not set. Server cannot start securely.');
+  process.exit(1);
+}
+
+const JWT_SECRET = process.env.JWT_SECRET;
 
 function signToken(payload) {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
@@ -26,4 +31,20 @@ function requireAdmin(req, res, next) {
   next();
 }
 
-module.exports = { signToken, authenticate, requireAdmin };
+function requireStaff(req, res, next) {
+  const allowed = ['admin', 'manager', 'staff'];
+  if (!allowed.includes(req.user?.role)) {
+    return res.status(403).json({ message: 'Insufficient permissions' });
+  }
+  next();
+}
+
+function requireManager(req, res, next) {
+  const allowed = ['admin', 'manager'];
+  if (!allowed.includes(req.user?.role)) {
+    return res.status(403).json({ message: 'Manager or admin access required' });
+  }
+  next();
+}
+
+module.exports = { signToken, authenticate, requireAdmin, requireStaff, requireManager };
