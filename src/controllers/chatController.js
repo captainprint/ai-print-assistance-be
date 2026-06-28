@@ -3,6 +3,7 @@ const Session = require('../models/Session');
 const { MAX_USER_MESSAGES } = require('../models/Session');
 const { chat, chatStream } = require('../services/aiService');
 const { getMatchingImages } = require('../services/imageService');
+const { notifyHandoff } = require('../services/handoffService');
 
 async function createSession(req, res, next) {
   try {
@@ -87,6 +88,8 @@ async function sendMessage(req, res, next) {
       session.markModified('customerProfile');
     }
 
+    const wasHumanRequired = session.status === 'human_required';
+
     if (aiResponse.needsHuman) {
       session.status = 'human_required';
       session.humanReason = aiResponse.humanReason;
@@ -96,6 +99,12 @@ async function sendMessage(req, res, next) {
 
     session.processingLock = false;
     await session.save();
+
+    if (aiResponse.needsHuman && !wasHumanRequired) {
+      notifyHandoff(session).catch((err) =>
+        console.error('[handoff] Notification failed:', err.message)
+      );
+    }
 
     let images = [];
     if (aiResponse.recommendations && aiResponse.recommendations.length > 0) {
@@ -198,6 +207,8 @@ async function streamMessage(req, res, next) {
       session.markModified('customerProfile');
     }
 
+    const wasHumanRequiredStream = session.status === 'human_required';
+
     if (aiResponse.needsHuman) {
       session.status = 'human_required';
       session.humanReason = aiResponse.humanReason;
@@ -207,6 +218,12 @@ async function streamMessage(req, res, next) {
 
     session.processingLock = false;
     await session.save();
+
+    if (aiResponse.needsHuman && !wasHumanRequiredStream) {
+      notifyHandoff(session).catch((err) =>
+        console.error('[handoff] Notification failed:', err.message)
+      );
+    }
 
     let images = [];
     if (aiResponse.recommendations && aiResponse.recommendations.length > 0) {

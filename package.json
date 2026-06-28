@@ -20,6 +20,7 @@
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^8.4.3",
     "node-cron": "^4.2.1",
+    "nodemailer": "^9.0.1",
     "openai": "^4.52.3",
     "uuid": "^10.0.0"
   },
