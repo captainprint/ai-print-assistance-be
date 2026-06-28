@@ -18,6 +18,18 @@ const customerProfileSchema = new mongoose.Schema({
 
 const MAX_USER_MESSAGES = 25;
 
+const staffReplySchema = new mongoose.Schema({
+  message: { type: String, required: true },
+  staffId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  staffName: { type: String, required: true },
+  timestamp: { type: Date, default: Date.now },
+}, { _id: false });
+
+const customerReplySchema = new mongoose.Schema({
+  message: { type: String, required: true },
+  timestamp: { type: Date, default: Date.now },
+}, { _id: false });
+
 const sessionSchema = new mongoose.Schema({
   sessionId: { type: String, required: true, unique: true, index: true },
   status: {
@@ -37,6 +49,12 @@ const sessionSchema = new mongoose.Schema({
   // Challenge: Concurrent requests on same session caused duplicate messages and double AI calls.
   // Fix: processingLock flag — set true before processing, reject any request that arrives while locked.
   processingLock: { type: Boolean, default: false },
+  assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  acceptedAt: { type: Date, default: null },
+  handoffNotifiedAt: { type: Date, default: null },
+  closedAt: { type: Date, default: null },
+  staffReplies: [staffReplySchema],
+  customerReplies: [customerReplySchema],
 }, { timestamps: true });
 
 module.exports = mongoose.model('Session', sessionSchema);
