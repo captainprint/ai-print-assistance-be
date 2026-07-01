@@ -3,8 +3,8 @@ const { promisify } = require('util');
 
 const execFileAsync = promisify(execFile);
 
-// ShieldSecurity on the store blocks Node.js TLS fingerprints but allows curl's.
-// We call the WooCommerce REST API via curl as the HTTP client.
+// Challenge: ShieldSecurity blocked all Node.js HTTP requests (axios/fetch) with 403.
+// Fix: Route all WooCommerce API calls through curl which has a different TLS fingerprint.
 async function apiGet(url) {
   const { stdout } = await execFileAsync('curl', [
     '-s', '--max-time', '30', '--compressed',
