@@ -1,3 +1,5 @@
+// Challenge: Single rate limit was not enough — bad actors could create many sessions to bypass it.
+// Fix: Six independent layers (per-minute, per-day, session cap, body guard, session creation, in-flight lock).
 const rateLimit = require('express-rate-limit');
 
 const perMinuteLimiter = rateLimit({
