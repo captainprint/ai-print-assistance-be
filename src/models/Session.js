@@ -34,6 +34,8 @@ const sessionSchema = new mongoose.Schema({
   messages: [messageSchema],
   humanReason: String,
   userMessageCount: { type: Number, default: 0 },
+  // Challenge: Concurrent requests on same session caused duplicate messages and double AI calls.
+  // Fix: processingLock flag — set true before processing, reject any request that arrives while locked.
   processingLock: { type: Boolean, default: false },
 }, { timestamps: true });
 
