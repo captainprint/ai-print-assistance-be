@@ -225,6 +225,8 @@ async function* chatStream(sessionMessages, currentProfile) {
     stream: true,
   });
 
+  // Challenge: Structured JSON output can't be parsed mid-stream, but client needs real-time tokens.
+  // Fix: Stream raw tokens immediately, accumulate full buffer, parse JSON only once stream ends.
   let buffer = '';
   for await (const chunk of stream) {
     const delta = chunk.choices[0]?.delta?.content || '';
