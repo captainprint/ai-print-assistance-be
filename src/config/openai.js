@@ -1,3 +1,5 @@
+// Challenge: App crashed on startup when OPENAI_API_KEY was missing, even for non-AI routes.
+// Fix: Lazy singleton — client is created only on first AI call, not at module load time.
 const OpenAI = require('openai');
 
 let _client;
