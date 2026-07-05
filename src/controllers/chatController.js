@@ -72,6 +72,8 @@ async function sendMessage(req, res, next) {
     session.messages.push({ role: 'user', content: message });
     session.userMessageCount += 1;
 
+    // Challenge: Full conversation history grew too large and exceeded OpenAI context window.
+    // Fix: Send only last 20 messages; inject customer profile separately to preserve context.
     const recentMessages = session.messages.slice(-20);
     const aiResponse = await chat(recentMessages, session.customerProfile.toObject?.() || session.customerProfile);
 
