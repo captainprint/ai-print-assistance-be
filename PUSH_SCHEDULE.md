@@ -1,4 +1,4 @@
-# Git Push Schedule (Jun 23 – Jul 10)
+# Git Push Schedule (Jun 23 – Jul 26)
 
 Each day, run the command for that day. GitHub will show the correct date.
 
@@ -38,7 +38,7 @@ git push origin 8fc3011cc1ab8375cc00824e449b211faed962f2:refs/heads/main
 
 ---
 
-## Day 5 — Jun 27
+## Day 5 — Jun 27 (DONE ✅)
 ```
 git push origin 49a5048dcbc8364c44a7519141dcdfdeb19df7b2:refs/heads/main
 ```
@@ -46,7 +46,7 @@ git push origin 49a5048dcbc8364c44a7519141dcdfdeb19df7b2:refs/heads/main
 
 ---
 
-## Day 6 — Jun 28
+## Day 6 — Jun 28 (DONE ✅)
 ```
 git push origin fbf8b1d0a2d48acaa8c7917c6cad6a0707561d5d:refs/heads/main
 ```
@@ -55,7 +55,7 @@ git push origin fbf8b1d0a2d48acaa8c7917c6cad6a0707561d5d:refs/heads/main
 
 ---
 
-## Day 7 — Jun 29
+## Day 7 — Jun 29 (DONE ✅)
 ```
 git push origin f68ba7899c21a40d5da721da91ee438f135963d2:refs/heads/main
 ```
@@ -64,7 +64,7 @@ git push origin f68ba7899c21a40d5da721da91ee438f135963d2:refs/heads/main
 
 ---
 
-## Day 8 — Jun 30
+## Day 8 — Jun 30 (DONE ✅)
 ```
 git push origin 8009b68edba74a2fa146b123bcd9f2abbe7266d1:refs/heads/main
 ```
@@ -72,7 +72,7 @@ git push origin 8009b68edba74a2fa146b123bcd9f2abbe7266d1:refs/heads/main
 
 ---
 
-## Day 9 — Jul 1
+## Day 9 — Jul 6, 9:14 AM
 ```
 git push origin f105addc2995ac56e51f58ea9e13b9aef2954497:refs/heads/main
 ```
@@ -80,7 +80,7 @@ git push origin f105addc2995ac56e51f58ea9e13b9aef2954497:refs/heads/main
 
 ---
 
-## Day 10 — Jul 2
+## Day 10 — Jul 7, 8:47 PM
 ```
 git push origin cf97116c4c1c403725d508567016b632bc9c47cd:refs/heads/main
 ```
@@ -88,7 +88,7 @@ git push origin cf97116c4c1c403725d508567016b632bc9c47cd:refs/heads/main
 
 ---
 
-## Day 11 — Jul 3
+## Day 11 — Jul 8, 1:23 PM
 ```
 git push origin 8270f3e66ba07b2f58c98013d74589f039a12539:refs/heads/main
 ```
@@ -96,7 +96,7 @@ git push origin 8270f3e66ba07b2f58c98013d74589f039a12539:refs/heads/main
 
 ---
 
-## Day 12 — Jul 4
+## Day 12 — Jul 9, 11:02 AM
 ```
 git push origin d16b9affa9b3f44e0d5b22dcb18d39e731a9976c:refs/heads/main
 ```
@@ -104,7 +104,7 @@ git push origin d16b9affa9b3f44e0d5b22dcb18d39e731a9976c:refs/heads/main
 
 ---
 
-## Day 13 — Jul 5
+## Day 13 — Jul 10, 6:38 PM
 ```
 git push origin b981807969d9ba5cfa4011f8d6303e573977fb73:refs/heads/main
 ```
@@ -114,7 +114,7 @@ git push origin b981807969d9ba5cfa4011f8d6303e573977fb73:refs/heads/main
 
 ---
 
-## Day 14 — Jul 6
+## Day 14 — Jul 11, 2:57 PM
 ```
 git push origin 6b021de2c543a37fff72e92a9b0aaf0b9e6a9f48:refs/heads/main
 ```
@@ -122,7 +122,7 @@ git push origin 6b021de2c543a37fff72e92a9b0aaf0b9e6a9f48:refs/heads/main
 
 ---
 
-## Day 15 — Jul 7
+## Day 15 — Jul 12, 9:41 PM
 ```
 git push origin 325b6e5130fefdf8a7721bc2dd667db3923b3e74:refs/heads/main
 ```
@@ -130,7 +130,7 @@ git push origin 325b6e5130fefdf8a7721bc2dd667db3923b3e74:refs/heads/main
 
 ---
 
-## Day 16 — Jul 8
+## Day 16 — Jul 13, 10:15 AM
 ```
 git push origin b60aa847496f5fc61c5228c30cb6fef43cce6844:refs/heads/main
 ```
@@ -138,7 +138,7 @@ git push origin b60aa847496f5fc61c5228c30cb6fef43cce6844:refs/heads/main
 
 ---
 
-## Day 17 — Jul 9
+## Day 17 — Jul 14, 4:29 PM
 ```
 git push origin 2f191bf9c88e350849f4ab219840516e6b08da92:refs/heads/main
 ```
@@ -146,7 +146,7 @@ git push origin 2f191bf9c88e350849f4ab219840516e6b08da92:refs/heads/main
 
 ---
 
-## Day 18 — Jul 10
+## Day 18 — Jul 15, 7:52 PM
 ```
 git push origin 769e64ef71128fcab2d2926c436955e3fb23b348:refs/heads/main
 ```
@@ -154,7 +154,7 @@ git push origin 769e64ef71128fcab2d2926c436955e3fb23b348:refs/heads/main
 
 ---
 
-## Day 19 — Jul 11
+## Day 19 — Jul 16, 12:38 PM
 ```
 git push origin 7302362:refs/heads/main
 ```
@@ -162,7 +162,7 @@ git push origin 7302362:refs/heads/main
 
 ---
 
-## Day 20 — Jul 12
+## Day 20 — Jul 17, 3:04 PM
 ```
 git push origin 64373ca:refs/heads/main
 ```
@@ -170,7 +170,7 @@ git push origin 64373ca:refs/heads/main
 
 ---
 
-## Day 21 — Jul 13
+## Day 21 — Jul 18, 8:19 PM
 ```
 git push origin 6712ad7:refs/heads/main
 ```
@@ -178,7 +178,7 @@ git push origin 6712ad7:refs/heads/main
 
 ---
 
-## Day 22 — Jul 14
+## Day 22 — Jul 19, 11:47 AM
 ```
 git push origin 9f1b234:refs/heads/main
 ```
@@ -186,7 +186,7 @@ git push origin 9f1b234:refs/heads/main
 
 ---
 
-## Day 23 — Jul 15
+## Day 23 — Jul 20, 5:33 PM
 ```
 git push origin eef28c9:refs/heads/main
 ```
@@ -194,7 +194,7 @@ git push origin eef28c9:refs/heads/main
 
 ---
 
-## Day 24 — Jul 16
+## Day 24 — Jul 21, 9:58 AM
 ```
 git push origin 724c16c:refs/heads/main
 ```
@@ -202,7 +202,7 @@ git push origin 724c16c:refs/heads/main
 
 ---
 
-## Day 25 — Jul 17
+## Day 25 — Jul 22, 2:11 PM
 ```
 git push origin 3ffd1a7:refs/heads/main
 ```
@@ -210,7 +210,7 @@ git push origin 3ffd1a7:refs/heads/main
 
 ---
 
-## Day 26 — Jul 18
+## Day 26 — Jul 23, 6:44 PM
 ```
 git push origin c17c0ee:refs/heads/main
 ```
@@ -218,7 +218,7 @@ git push origin c17c0ee:refs/heads/main
 
 ---
 
-## Day 27 — Jul 19
+## Day 27 — Jul 24, 10:27 AM
 ```
 git push origin b718cd2:refs/heads/main
 ```
@@ -226,7 +226,7 @@ git push origin b718cd2:refs/heads/main
 
 ---
 
-## Day 28 — Jul 20
+## Day 28 — Jul 25, 4:56 PM
 ```
 git push origin b467f03:refs/heads/main
 ```
@@ -234,8 +234,16 @@ git push origin b467f03:refs/heads/main
 
 ---
 
-## Day 29 — Jul 21
+## Day 29 — Jul 26, 7:38 PM
 ```
 git push origin 0cdc637:refs/heads/main
 ```
 - docs: add API integration guide PDF for frontend team
+
+---
+
+## Day 30 — Jul 27, 11:15 AM
+```
+git push origin ec0a540:refs/heads/main
+```
+- refactor: simplify role system to user/admin — drop staff/manager/viewer tiers
