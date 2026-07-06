@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { authenticate, requireStaff, requireManager } = require('../middleware/auth');
+const { authenticate } = require('../middleware/auth');
 const {
   listConversations,
   getConversation,
@@ -21,12 +21,12 @@ router.get('/conversations/:sessionId', authenticate, getConversation);
 router.get('/assignable-users', authenticate, listAssignableUsers);
 
 router.get('/view/:token', authenticate, viewViaToken);
-router.post('/accept/:token', authenticate, requireStaff, acceptConversation);
-router.post('/assign/:token', authenticate, requireManager, assignConversation);
+router.post('/accept/:token', authenticate, acceptConversation);
+router.post('/assign/:token', authenticate, assignConversation);
 
-router.post('/unassign/:sessionId', authenticate, requireManager, unassignConversation);
-router.post('/reply/:sessionId', authenticate, requireStaff, staffReply);
-router.post('/close/:sessionId', authenticate, requireStaff, closeConversation);
+router.post('/unassign/:sessionId', authenticate, unassignConversation);
+router.post('/reply/:sessionId', authenticate, staffReply);
+router.post('/close/:sessionId', authenticate, closeConversation);
 
 // Customer token routes — no JWT, token-based only
 router.get('/resume/:customerToken', customerResume);

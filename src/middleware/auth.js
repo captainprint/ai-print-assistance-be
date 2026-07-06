@@ -31,20 +31,4 @@ function requireAdmin(req, res, next) {
   next();
 }
 
-function requireStaff(req, res, next) {
-  const allowed = ['admin', 'manager', 'staff'];
-  if (!allowed.includes(req.user?.role)) {
-    return res.status(403).json({ message: 'Insufficient permissions' });
-  }
-  next();
-}
-
-function requireManager(req, res, next) {
-  const allowed = ['admin', 'manager'];
-  if (!allowed.includes(req.user?.role)) {
-    return res.status(403).json({ message: 'Manager or admin access required' });
-  }
-  next();
-}
-
-module.exports = { signToken, authenticate, requireAdmin, requireStaff, requireManager };
+module.exports = { signToken, authenticate, requireAdmin };

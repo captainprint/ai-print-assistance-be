@@ -120,7 +120,7 @@ async function acceptConversation(req, res, next) {
     let staffName = 'Admin';
     let staffEmail = null;
 
-    if (req.user.role !== 'admin') {
+    if (req.user.id) {
       const user = await User.findById(req.user.id).select('fullName email');
       if (!user) return res.status(404).json({ message: 'User not found' });
       staffId = user._id;
@@ -244,7 +244,7 @@ async function staffReply(req, res, next) {
     let staffName = 'Admin';
     let staffId = null;
 
-    if (req.user.role !== 'admin') {
+    if (req.user.id) {
       const user = await User.findById(req.user.id).select('fullName');
       if (user) { staffName = user.fullName; staffId = user._id; }
     }
@@ -294,7 +294,7 @@ async function closeConversation(req, res, next) {
 
 async function listAssignableUsers(req, res, next) {
   try {
-    const users = await User.find({ isActive: true, role: { $in: ['staff', 'manager'] } })
+    const users = await User.find({ isActive: true, role: 'user' })
       .select('fullName email role')
       .sort({ fullName: 1 })
       .lean();
@@ -368,7 +368,7 @@ async function customerReply(req, res, next) {
       }).catch((err) => console.error('[handoff] Customer reply notify failed:', err.message));
     } else {
       // Unassigned — notify all staff
-      User.find({ isActive: true, role: { $in: ['staff', 'manager'] } })
+      User.find({ isActive: true, role: 'user' })
         .select('fullName email')
         .lean()
         .then((users) => {

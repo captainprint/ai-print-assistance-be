@@ -1,5 +1,7 @@
 const User = require('../models/User');
 
+const VALID_ROLES = ['user', 'admin'];
+
 async function listUsers(req, res) {
   const { page = 1, limit = 10, search = '' } = req.query;
   const query = search
@@ -29,6 +31,9 @@ async function createUser(req, res) {
   if (!fullName || !email || !phone || !password) {
     return res.status(400).json({ message: 'fullName, email, phone, and password are required' });
   }
+  if (role !== undefined && !VALID_ROLES.includes(role)) {
+    return res.status(400).json({ message: `role must be one of: ${VALID_ROLES.join(', ')}` });
+  }
 
   const exists = await User.findOne({ email });
   if (exists) return res.status(409).json({ message: 'Email already in use' });
@@ -39,6 +44,10 @@ async function createUser(req, res) {
 
 async function updateUser(req, res) {
   const { fullName, email, phone, role, password } = req.body;
+  if (role !== undefined && !VALID_ROLES.includes(role)) {
+    return res.status(400).json({ message: `role must be one of: ${VALID_ROLES.join(', ')}` });
+  }
+
   const user = await User.findById(req.params.id);
   if (!user) return res.status(404).json({ message: 'User not found' });
 

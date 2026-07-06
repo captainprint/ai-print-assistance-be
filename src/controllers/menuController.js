@@ -1,10 +1,12 @@
 const MENUS = {
   admin: [
+    { key: 'dashboard', label: 'Dashboard', path: '/admin/dashboard' },
+    { key: 'conversations', label: 'Conversations', path: '/admin/conversations' },
     { key: 'users', label: 'Users', path: '/admin/users' },
-    { key: 'support', label: 'Support', path: '/support' },
+    { key: 'settings', label: 'Settings', path: '/admin/settings' },
   ],
   default: [
-    { key: 'support', label: 'Support', path: '/support' },
+    { key: 'conversations', label: 'Conversations', path: '/admin/conversations' },
   ],
 };
 

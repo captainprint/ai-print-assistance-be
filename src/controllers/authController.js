@@ -23,7 +23,7 @@ async function logout(req, res) {
 }
 
 async function me(req, res) {
-  if (req.user.role === 'admin') {
+  if (!req.user.id) {
     return res.json({ user: { username: 'admin', role: 'admin' } });
   }
   const user = await User.findById(req.user.id);
