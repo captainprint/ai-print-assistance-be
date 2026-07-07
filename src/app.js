@@ -5,8 +5,6 @@ const cron = require('node-cron');
 const errorHandler = require('./middleware/errorHandler');
 const rateLimiter = require('./middleware/rateLimiter');
 const { syncProducts } = require('./services/syncService');
-const HandoffToken = require('./models/HandoffToken');
-const CustomerToken = require('./models/CustomerToken');
 
 const chatRoutes = require('./routes/chat');
 const productRoutes = require('./routes/products');
@@ -17,27 +15,29 @@ const adminUserRoutes = require('./routes/adminUsers');
 const menuRoutes = require('./routes/menu');
 const dashboardRoutes = require('./routes/dashboard');
 const handoffRoutes = require('./routes/handoff');
+const cronRoutes = require('./routes/cron');
+const { purgeExpiredTokens } = require('./services/maintenanceService');
 
 const app = express();
 
-// Sync product data every day at 2:00 AM
-cron.schedule('0 2 * * *', () => {
-  syncProducts().catch((err) => console.error('[cron] Sync failed:', err.message));
-});
+// On Vercel these run as scheduled HTTP calls to /api/v1/cron/* instead
+// (serverless functions don't keep in-process timers alive).
+if (!process.env.VERCEL) {
+  // Sync product data every day at 2:00 AM
+  cron.schedule('0 2 * * *', () => {
+    syncProducts().catch((err) => console.error('[cron] Sync failed:', err.message));
+  });
 
-// Purge expired handoff and customer tokens every night at 3:00 AM
-cron.schedule('0 3 * * *', async () => {
-  try {
-    const now = new Date();
-    const [h, c] = await Promise.all([
-      HandoffToken.deleteMany({ expiresAt: { $lt: now } }),
-      CustomerToken.deleteMany({ expiresAt: { $lt: now } }),
-    ]);
-    console.log(`[cron] Purged ${h.deletedCount} handoff tokens, ${c.deletedCount} customer tokens`);
-  } catch (err) {
-    console.error('[cron] Token purge failed:', err.message);
-  }
-});
+  // Purge expired handoff and customer tokens every night at 3:00 AM
+  cron.schedule('0 3 * * *', async () => {
+    try {
+      const { handoffDeleted, customerDeleted } = await purgeExpiredTokens();
+      console.log(`[cron] Purged ${handoffDeleted} handoff tokens, ${customerDeleted} customer tokens`);
+    } catch (err) {
+      console.error('[cron] Token purge failed:', err.message);
+    }
+  });
+}
 
 app.use(helmet());
 app.use(cors({
@@ -49,15 +49,16 @@ app.use(rateLimiter);
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
-app.use('/api/chat', chatRoutes);
-app.use('/api/products', productRoutes);
-app.use('/api/images', imageRoutes);
-app.use('/api/admin', adminAuthRoutes);
-app.use('/api/auth', authRoutes);
-app.use('/api/admin/users', adminUserRoutes);
-app.use('/api/menu', menuRoutes);
-app.use('/api/dashboard', dashboardRoutes);
-app.use('/api/handoff', handoffRoutes);
+app.use('/api/v1/chat', chatRoutes);
+app.use('/api/v1/products', productRoutes);
+app.use('/api/v1/images', imageRoutes);
+app.use('/api/v1/admin', adminAuthRoutes);
+app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/admin/users', adminUserRoutes);
+app.use('/api/v1/menu', menuRoutes);
+app.use('/api/v1/dashboard', dashboardRoutes);
+app.use('/api/v1/handoff', handoffRoutes);
+app.use('/api/v1/cron', cronRoutes);
 
 app.use(errorHandler);
 

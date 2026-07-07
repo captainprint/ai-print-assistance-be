@@ -1,0 +1,9 @@
+{
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/api/index" }
+  ],
+  "crons": [
+    { "path": "/api/v1/cron/sync-products", "schedule": "0 2 * * *" },
+    { "path": "/api/v1/cron/purge-tokens", "schedule": "0 3 * * *" }
+  ]
+}
