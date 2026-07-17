@@ -7,6 +7,7 @@ const {
   viewViaToken,
   acceptConversation,
   assignConversation,
+  assignConversationBySession,
   unassignConversation,
   staffReply,
   closeConversation,
@@ -23,6 +24,7 @@ router.get('/assignable-users', authenticate, listAssignableUsers);
 router.get('/view/:token', authenticate, viewViaToken);
 router.post('/accept/:token', authenticate, acceptConversation);
 router.post('/assign/:token', authenticate, assignConversation);
+router.post('/conversations/:sessionId/assign', authenticate, assignConversationBySession);
 
 router.post('/unassign/:sessionId', authenticate, unassignConversation);
 router.post('/reply/:sessionId', authenticate, staffReply);

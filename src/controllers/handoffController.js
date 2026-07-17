@@ -10,6 +10,12 @@ const {
 const { notifyHandoff } = require('../services/handoffService');
 
 function sessionSummary(session) {
+  const latest = [
+    ...(session.messages || []).map((m) => ({ text: m.content, timestamp: m.timestamp })),
+    ...(session.staffReplies || []).map((r) => ({ text: r.message, timestamp: r.timestamp })),
+    ...(session.customerReplies || []).map((r) => ({ text: r.message, timestamp: r.timestamp })),
+  ].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
+
   return {
     sessionId: session.sessionId,
     status: session.status,
@@ -20,6 +26,8 @@ function sessionSummary(session) {
     closedAt: session.closedAt,
     handoffNotifiedAt: session.handoffNotifiedAt,
     createdAt: session.createdAt,
+    preview: latest?.text ?? null,
+    lastActivityAt: latest?.timestamp ?? session.createdAt,
   };
 }
 
@@ -53,7 +61,20 @@ async function listConversations(req, res, next) {
     const [sessions, total] = await Promise.all([
       Session.find(query)
         .populate('assignedTo', 'fullName email role')
-        .select('-messages -staffReplies -customerReplies -processingLock')
+        .select({
+          sessionId: 1,
+          status: 1,
+          humanReason: 1,
+          customerProfile: 1,
+          assignedTo: 1,
+          acceptedAt: 1,
+          closedAt: 1,
+          handoffNotifiedAt: 1,
+          createdAt: 1,
+          messages: { $slice: -1 },
+          staffReplies: { $slice: -1 },
+          customerReplies: { $slice: -1 },
+        })
         .sort({ createdAt: -1 })
         .skip((Number(page) - 1) * Number(limit))
         .limit(Number(limit))
@@ -62,7 +83,7 @@ async function listConversations(req, res, next) {
     ]);
 
     res.json({
-      conversations: sessions,
+      conversations: sessions.map(sessionSummary),
       total,
       page: Number(page),
       pages: Math.ceil(total / Number(limit)),
@@ -158,6 +179,40 @@ async function acceptConversation(req, res, next) {
   }
 }
 
+async function notifyAssignment(session, targetUser) {
+  const { v4: uuidv4 } = require('uuid');
+  const { sendStaffHandoffEmail } = require('../services/emailService');
+  const newToken = uuidv4();
+  await HandoffToken.create({
+    token: newToken,
+    sessionId: session.sessionId,
+    staffEmail: targetUser.email,
+    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+  });
+
+  sendStaffHandoffEmail({
+    to: targetUser.email,
+    staffName: targetUser.fullName,
+    session,
+    handoffToken: newToken,
+  }).catch((err) => console.error('[handoff] Assign email failed:', err.message));
+}
+
+async function assignSessionToUser(session, userId) {
+  const targetUser = await User.findById(userId).select('fullName email');
+  if (!targetUser) return { error: 'Target user not found' };
+
+  session.assignedTo = targetUser._id;
+  session.acceptedAt = new Date();
+  await session.save();
+
+  await notifyAssignment(session, targetUser);
+
+  return {
+    assignedTo: { _id: targetUser._id, fullName: targetUser.fullName, email: targetUser.email },
+  };
+}
+
 async function assignConversation(req, res, next) {
   try {
     const { userId } = req.body;
@@ -169,40 +224,30 @@ async function assignConversation(req, res, next) {
     });
     if (!record) return res.status(404).json({ message: 'Link is invalid or has expired' });
 
-    const [session, targetUser] = await Promise.all([
-      Session.findOne({ sessionId: record.sessionId }),
-      User.findById(userId).select('fullName email'),
-    ]);
-
+    const session = await Session.findOne({ sessionId: record.sessionId });
     if (!session) return res.status(404).json({ message: 'Conversation not found' });
-    if (!targetUser) return res.status(404).json({ message: 'Target user not found' });
 
-    session.assignedTo = targetUser._id;
-    session.acceptedAt = new Date();
-    await session.save();
+    const result = await assignSessionToUser(session, userId);
+    if (result.error) return res.status(404).json({ message: result.error });
 
-    // Send a dedicated handoff email to the assigned user
-    const { v4: uuidv4 } = require('uuid');
-    const { sendStaffHandoffEmail } = require('../services/emailService');
-    const newToken = uuidv4();
-    await HandoffToken.create({
-      token: newToken,
-      sessionId: session.sessionId,
-      staffEmail: targetUser.email,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-    });
+    res.json({ success: true, assignedTo: result.assignedTo });
+  } catch (err) {
+    next(err);
+  }
+}
 
-    sendStaffHandoffEmail({
-      to: targetUser.email,
-      staffName: targetUser.fullName,
-      session,
-      handoffToken: newToken,
-    }).catch((err) => console.error('[handoff] Assign email failed:', err.message));
+async function assignConversationBySession(req, res, next) {
+  try {
+    const { userId } = req.body;
+    if (!userId) return res.status(400).json({ message: 'userId is required' });
 
-    res.json({
-      success: true,
-      assignedTo: { _id: targetUser._id, fullName: targetUser.fullName, email: targetUser.email },
-    });
+    const session = await Session.findOne({ sessionId: req.params.sessionId });
+    if (!session) return res.status(404).json({ message: 'Conversation not found' });
+
+    const result = await assignSessionToUser(session, userId);
+    if (result.error) return res.status(404).json({ message: result.error });
+
+    res.json({ success: true, assignedTo: result.assignedTo });
   } catch (err) {
     next(err);
   }
@@ -405,6 +450,7 @@ module.exports = {
   viewViaToken,
   acceptConversation,
   assignConversation,
+  assignConversationBySession,
   unassignConversation,
   staffReply,
   closeConversation,
