@@ -14,6 +14,9 @@ const customerProfileSchema = new mongoose.Schema({
   quantity: String,
   budget: String,
   timeline: String,
+  name: String,
+  email: String,
+  phone: String,
 }, { _id: false });
 
 const MAX_USER_MESSAGES = 25;
