@@ -5,6 +5,15 @@ const { chat, chatStream } = require('../services/aiService');
 const { getMatchingImages } = require('../services/imageService');
 const { notifyHandoff } = require('../services/handoffService');
 
+// Challenge: the AI occasionally set needsHuman=true on the same turn it first
+// asks for name/email/phone, before actually collecting them, locking the
+// session into human_required with no contact info ever saved.
+// Fix: never trust needsHuman unless contact info is actually present.
+function hasCompleteContactInfo(session) {
+  const profile = session.customerProfile;
+  return !!(profile && profile.name && profile.email && profile.phone);
+}
+
 async function createSession(req, res, next) {
   try {
     const sessionId = uuidv4();
@@ -89,8 +98,9 @@ async function sendMessage(req, res, next) {
     }
 
     const wasHumanRequired = session.status === 'human_required';
+    const needsHuman = aiResponse.needsHuman && hasCompleteContactInfo(session);
 
-    if (aiResponse.needsHuman) {
+    if (needsHuman) {
       session.status = 'human_required';
       session.humanReason = aiResponse.humanReason;
     } else if (aiResponse.stage === 'completed') {
@@ -100,7 +110,7 @@ async function sendMessage(req, res, next) {
     session.processingLock = false;
     await session.save();
 
-    if (aiResponse.needsHuman && !wasHumanRequired) {
+    if (needsHuman && !wasHumanRequired) {
       notifyHandoff(session).catch((err) =>
         console.error('[handoff] Notification failed:', err.message)
       );
@@ -114,8 +124,8 @@ async function sendMessage(req, res, next) {
     res.json({
       message: aiResponse.message,
       stage: aiResponse.stage,
-      needsHuman: aiResponse.needsHuman,
-      humanReason: aiResponse.humanReason || null,
+      needsHuman,
+      humanReason: needsHuman ? aiResponse.humanReason || null : null,
       recommendations: aiResponse.recommendations || [],
       images,
     });
@@ -208,8 +218,9 @@ async function streamMessage(req, res, next) {
     }
 
     const wasHumanRequiredStream = session.status === 'human_required';
+    const needsHuman = aiResponse.needsHuman && hasCompleteContactInfo(session);
 
-    if (aiResponse.needsHuman) {
+    if (needsHuman) {
       session.status = 'human_required';
       session.humanReason = aiResponse.humanReason;
     } else if (aiResponse.stage === 'completed') {
@@ -219,7 +230,7 @@ async function streamMessage(req, res, next) {
     session.processingLock = false;
     await session.save();
 
-    if (aiResponse.needsHuman && !wasHumanRequiredStream) {
+    if (needsHuman && !wasHumanRequiredStream) {
       notifyHandoff(session).catch((err) =>
         console.error('[handoff] Notification failed:', err.message)
       );
@@ -233,8 +244,8 @@ async function streamMessage(req, res, next) {
     const finalPayload = JSON.stringify({
       message: aiResponse.message,
       stage: aiResponse.stage,
-      needsHuman: aiResponse.needsHuman,
-      humanReason: aiResponse.humanReason || null,
+      needsHuman,
+      humanReason: needsHuman ? aiResponse.humanReason || null : null,
       recommendations: aiResponse.recommendations || [],
       images,
     });
