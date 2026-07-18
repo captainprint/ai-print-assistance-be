@@ -339,7 +339,7 @@ async function closeConversation(req, res, next) {
 
 async function listAssignableUsers(req, res, next) {
   try {
-    const users = await User.find({ isActive: true, role: 'user' })
+    const users = await User.find({ isActive: true })
       .select('fullName email role')
       .sort({ fullName: 1 })
       .lean();
