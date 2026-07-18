@@ -58,6 +58,13 @@ async function listConversations(req, res, next) {
     else if (status === 'assigned') query.assignedTo = { $ne: null };
     else if (status === 'closed') query.closedAt = { $ne: null };
 
+    if (req.user.role !== 'admin') {
+      // Non-admin staff only work the live human-required queue: conversations
+      // assigned to them, or still up for grabs. Admin retains full visibility.
+      query.status = 'human_required';
+      query.$or = [{ assignedTo: null }, { assignedTo: req.user.id }];
+    }
+
     const [sessions, total] = await Promise.all([
       Session.find(query)
         .populate('assignedTo', 'fullName email role')
@@ -93,11 +100,24 @@ async function listConversations(req, res, next) {
   }
 }
 
+function canStaffAccess(req, session) {
+  if (req.user.role === 'admin') return true;
+  const assignedId = session.assignedTo ? String(session.assignedTo._id || session.assignedTo) : null;
+  const isMine = assignedId === String(req.user.id);
+  if (session.status === 'human_required') return assignedId === null || isMine;
+  // Once resolved (or otherwise off the live queue), only the staff member
+  // who owned it keeps direct access — it just drops out of their list.
+  return isMine;
+}
+
 async function getConversation(req, res, next) {
   try {
     const session = await Session.findOne({ sessionId: req.params.sessionId })
       .populate('assignedTo', 'fullName email role');
     if (!session) return res.status(404).json({ message: 'Conversation not found' });
+    if (!canStaffAccess(req, session)) {
+      return res.status(403).json({ message: 'You do not have access to this conversation' });
+    }
     res.json(sessionDetail(session));
   } catch (err) {
     next(err);
@@ -243,6 +263,9 @@ async function assignConversationBySession(req, res, next) {
 
     const session = await Session.findOne({ sessionId: req.params.sessionId });
     if (!session) return res.status(404).json({ message: 'Conversation not found' });
+    if (!canStaffAccess(req, session)) {
+      return res.status(403).json({ message: 'You do not have access to this conversation' });
+    }
 
     const result = await assignSessionToUser(session, userId);
     if (result.error) return res.status(404).json({ message: result.error });
@@ -257,6 +280,9 @@ async function unassignConversation(req, res, next) {
   try {
     const session = await Session.findOne({ sessionId: req.params.sessionId });
     if (!session) return res.status(404).json({ message: 'Conversation not found' });
+    if (!canStaffAccess(req, session)) {
+      return res.status(403).json({ message: 'You do not have access to this conversation' });
+    }
 
     if (!session.assignedTo) {
       return res.status(400).json({ message: 'Conversation is not currently assigned' });
@@ -285,6 +311,9 @@ async function staffReply(req, res, next) {
 
     const session = await Session.findOne({ sessionId: req.params.sessionId });
     if (!session) return res.status(404).json({ message: 'Conversation not found' });
+    if (!canStaffAccess(req, session)) {
+      return res.status(403).json({ message: 'You do not have access to this conversation' });
+    }
 
     let staffName = 'Admin';
     let staffId = null;
@@ -322,6 +351,9 @@ async function closeConversation(req, res, next) {
   try {
     const session = await Session.findOne({ sessionId: req.params.sessionId });
     if (!session) return res.status(404).json({ message: 'Conversation not found' });
+    if (!canStaffAccess(req, session)) {
+      return res.status(403).json({ message: 'You do not have access to this conversation' });
+    }
 
     if (session.closedAt) {
       return res.status(400).json({ message: 'Conversation is already closed' });
