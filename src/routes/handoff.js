@@ -14,6 +14,7 @@ const {
   listAssignableUsers,
   customerResume,
   customerReply,
+  customerReplyBySession,
 } = require('../controllers/handoffController');
 
 // Staff-authenticated routes
@@ -33,5 +34,9 @@ router.post('/close/:sessionId', authenticate, closeConversation);
 // Customer token routes — no JWT, token-based only
 router.get('/resume/:customerToken', customerResume);
 router.post('/customer-reply/:customerToken', customerReply);
+
+// Customer session route — no JWT, no token; same trust boundary as
+// /api/v1/chat (sessionId is already a fully public capability there).
+router.post('/customer-reply-by-session/:sessionId', customerReplyBySession);
 
 module.exports = router;

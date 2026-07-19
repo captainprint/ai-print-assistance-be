@@ -415,6 +415,43 @@ async function customerResume(req, res, next) {
   }
 }
 
+async function notifyStaffOfCustomerReply(session, message) {
+  // Notify assigned staff, or all staff if unassigned
+  if (session.assignedTo?.email) {
+    sendStaffCustomerRepliedEmail({
+      toEmail: session.assignedTo.email,
+      staffName: session.assignedTo.fullName,
+      session,
+      customerReply: message,
+    }).catch((err) => console.error('[handoff] Customer reply notify failed:', err.message));
+    return;
+  }
+
+  User.find({ isActive: true, role: 'user' })
+    .select('fullName email')
+    .lean()
+    .then((users) => {
+      users.forEach((u) => {
+        sendStaffCustomerRepliedEmail({
+          toEmail: u.email,
+          staffName: u.fullName,
+          session,
+          customerReply: message,
+        }).catch((err) => console.error(`[handoff] Notify ${u.email} failed:`, err.message));
+      });
+    });
+
+  const adminEmail = process.env.ADMIN_EMAIL;
+  if (adminEmail) {
+    sendStaffCustomerRepliedEmail({
+      toEmail: adminEmail,
+      staffName: 'Admin',
+      session,
+      customerReply: message,
+    }).catch(() => {});
+  }
+}
+
 async function customerReply(req, res, next) {
   try {
     const { message } = req.body;
@@ -436,44 +473,43 @@ async function customerReply(req, res, next) {
       return res.status(400).json({ message: 'This conversation has been closed by our team. Please start a new chat.' });
     }
 
-    session.customerReplies.push({ message: message.trim() });
+    const trimmed = message.trim();
+    session.customerReplies.push({ message: trimmed });
     tokenDoc.lastAccessedAt = new Date();
     await Promise.all([session.save(), tokenDoc.save()]);
 
-    // Notify assigned staff, or all staff if unassigned
-    if (session.assignedTo?.email) {
-      sendStaffCustomerRepliedEmail({
-        toEmail: session.assignedTo.email,
-        staffName: session.assignedTo.fullName,
-        session,
-        customerReply: message.trim(),
-      }).catch((err) => console.error('[handoff] Customer reply notify failed:', err.message));
-    } else {
-      // Unassigned — notify all staff
-      User.find({ isActive: true, role: 'user' })
-        .select('fullName email')
-        .lean()
-        .then((users) => {
-          users.forEach((u) => {
-            sendStaffCustomerRepliedEmail({
-              toEmail: u.email,
-              staffName: u.fullName,
-              session,
-              customerReply: message.trim(),
-            }).catch((err) => console.error(`[handoff] Notify ${u.email} failed:`, err.message));
-          });
-        });
+    await notifyStaffOfCustomerReply(session, trimmed);
 
-      const adminEmail = process.env.ADMIN_EMAIL;
-      if (adminEmail) {
-        sendStaffCustomerRepliedEmail({
-          toEmail: adminEmail,
-          staffName: 'Admin',
-          session,
-          customerReply: message.trim(),
-        }).catch(() => {});
-      }
+    res.json({ success: true, message: 'Reply sent — a team member will follow up shortly' });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Same as customerReply, but keyed by sessionId instead of a magic-link
+// token — used by the embedded chat widget once a conversation it already
+// holds locally (same trust boundary as the rest of /api/v1/chat) has been
+// escalated, so the visitor can keep replying without needing the email link.
+async function customerReplyBySession(req, res, next) {
+  try {
+    const { message } = req.body;
+    if (!message || !message.trim()) {
+      return res.status(400).json({ message: 'Message is required' });
     }
+
+    const session = await Session.findOne({ sessionId: req.params.sessionId })
+      .populate('assignedTo', 'fullName email');
+    if (!session) return res.status(404).json({ message: 'Session not found' });
+
+    if (session.closedAt) {
+      return res.status(400).json({ message: 'This conversation has been closed by our team. Please start a new chat.' });
+    }
+
+    const trimmed = message.trim();
+    session.customerReplies.push({ message: trimmed });
+    await session.save();
+
+    await notifyStaffOfCustomerReply(session, trimmed);
 
     res.json({ success: true, message: 'Reply sent — a team member will follow up shortly' });
   } catch (err) {
@@ -494,4 +530,5 @@ module.exports = {
   listAssignableUsers,
   customerResume,
   customerReply,
+  customerReplyBySession,
 };
