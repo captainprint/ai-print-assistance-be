@@ -52,13 +52,18 @@ function sessionDetail(session) {
 async function listConversations(req, res, next) {
   try {
     const { status = 'all', page = 1, limit = 10 } = req.query;
+    const isAdmin = req.user.role === 'admin';
 
-    const query = { status: { $ne: 'active' }, handoffNotifiedAt: { $ne: null } };
+    // Non-admin staff only ever see the handoff inbox (escalated
+    // conversations). Admin sees everything, including ones the AI is
+    // still handling solo that were never escalated.
+    const query = isAdmin ? {} : { status: { $ne: 'active' }, handoffNotifiedAt: { $ne: null } };
+
     if (status === 'unassigned') query.assignedTo = null;
     else if (status === 'assigned') query.assignedTo = { $ne: null };
     else if (status === 'closed') query.closedAt = { $ne: null };
 
-    if (req.user.role !== 'admin') {
+    if (!isAdmin) {
       // Non-admin staff only work the live human-required queue: conversations
       // assigned to them, or still up for grabs. Admin retains full visibility.
       query.status = 'human_required';
