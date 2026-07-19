@@ -15,6 +15,11 @@ function createTransporter() {
 const FROM = process.env.EMAIL_FROM || '"PrintAssistance" <no-reply@printassistance.com>';
 const FRONTEND = process.env.FRONTEND_URL || 'http://localhost:3000';
 
+// The customer-facing chat widget lives on the storefront, not this app —
+// magic links must point there (its floating chat button reads ?t= to
+// resume the conversation), not at this app's own (staff-only) origin.
+const CUSTOMER_APP_URL = (process.env.CUSTOMER_APP_URL || 'https://staging13.captainprint.com').replace(/\/+$/, '');
+
 function profileSummary(p) {
   const lines = [];
   if (p.name)        lines.push(`<tr><td style="color:#6b7280;padding:4px 0">Name</td><td style="font-weight:600;padding:4px 0 4px 16px">${p.name}</td></tr>`);
@@ -78,7 +83,7 @@ async function sendCustomerConfirmationEmail({ session, customerToken }) {
   const p = session.customerProfile || {};
   if (!p.email) return;
 
-  const magicLink = `${FRONTEND}/chat/resume?t=${customerToken}`;
+  const magicLink = `${CUSTOMER_APP_URL}/?t=${customerToken}`;
   const html = baseTemplate(`
     <h2 style="margin:0 0 8px;color:#111827;font-size:22px">We've got your request, ${p.name || 'there'}!</h2>
     <p style="margin:0 0 20px;color:#6b7280;font-size:14px">Thanks for reaching out. One of our team members will review your inquiry and get back to you shortly — usually within a few hours during business hours.</p>
@@ -123,7 +128,7 @@ async function sendCustomerReplyEmail({ session, staffReply, customerToken, staf
   const p = session.customerProfile || {};
   if (!p.email) return;
 
-  const magicLink = `${FRONTEND}/chat/resume?t=${customerToken}`;
+  const magicLink = `${CUSTOMER_APP_URL}/?t=${customerToken}`;
   const html = baseTemplate(`
     <h2 style="margin:0 0 8px;color:#111827;font-size:22px">You have a reply from our team</h2>
     <p style="margin:0 0 20px;color:#6b7280;font-size:14px">Hi ${p.name || 'there'}, ${staffName} from PrintAssistance has responded to your inquiry.</p>
