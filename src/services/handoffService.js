@@ -14,7 +14,8 @@ async function notifyHandoff(session) {
   // Guard: only send once — prevent duplicate emails if AI re-triggers human_required
   if (session.handoffNotifiedAt) return;
 
-  const staffUsers = await User.find({ isActive: true, role: 'user' })
+  // All active staff — including admin-role accounts, not just role: 'user'.
+  const staffUsers = await User.find({ isActive: true })
     .select('fullName email')
     .lean();
 

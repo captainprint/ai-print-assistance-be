@@ -427,7 +427,8 @@ async function notifyStaffOfCustomerReply(session, message) {
     return;
   }
 
-  User.find({ isActive: true, role: 'user' })
+  // All active staff — including admin-role accounts, not just role: 'user'.
+  User.find({ isActive: true })
     .select('fullName email')
     .lean()
     .then((users) => {
