@@ -1,5 +1,6 @@
 const openai = require('../config/openai');
 const Product = require('../models/Product');
+const { buildKnowledgeBaseSection } = require('./knowledgeBaseService');
 
 const MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 
@@ -69,7 +70,10 @@ const RESPONSE_SCHEMA = {
 };
 
 async function buildSystemPrompt() {
-  const products = await Product.find({ active: true }).lean();
+  const [products, knowledgeBaseSection] = await Promise.all([
+    Product.find({ active: true }).lean(),
+    buildKnowledgeBaseSection(),
+  ]);
   const productSummary = products
     .map((p) => {
       const stocks = p.paperStocks.map((s) => s.name).join(', ');
@@ -94,6 +98,8 @@ async function buildSystemPrompt() {
 
 ## Available Products
 ${productSummary || '(No products loaded yet)'}
+
+${knowledgeBaseSection}
 
 ## Paper Stocks
 Business Cards:
