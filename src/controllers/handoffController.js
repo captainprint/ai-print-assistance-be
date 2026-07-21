@@ -59,6 +59,11 @@ async function listConversations(req, res, next) {
     // still handling solo that were never escalated.
     const query = isAdmin ? {} : { status: { $ne: 'active' }, handoffNotifiedAt: { $ne: null } };
 
+    // A session is created the moment the widget loads, before the customer
+    // has typed anything — don't clutter the list with those until there's
+    // an actual message to show.
+    query.userMessageCount = { $gt: 0 };
+
     if (status === 'unassigned') query.assignedTo = null;
     else if (status === 'assigned') query.assignedTo = { $ne: null };
     else if (status === 'closed') query.closedAt = { $ne: null };

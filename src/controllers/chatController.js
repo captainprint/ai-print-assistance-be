@@ -43,6 +43,19 @@ async function clearSession(req, res, next) {
   }
 }
 
+async function closeSessionByCustomer(req, res, next) {
+  try {
+    const session = await Session.findOne({ sessionId: req.params.sessionId });
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+    session.status = 'completed';
+    session.closedAt = session.closedAt || new Date();
+    await session.save();
+    res.json({ success: true, closedAt: session.closedAt });
+  } catch (err) {
+    next(err);
+  }
+}
+
 async function sendMessage(req, res, next) {
   try {
     const { sessionId, message } = req.body;
@@ -263,4 +276,4 @@ async function streamMessage(req, res, next) {
   }
 }
 
-module.exports = { createSession, getSession, clearSession, sendMessage, streamMessage };
+module.exports = { createSession, getSession, clearSession, closeSessionByCustomer, sendMessage, streamMessage };
