@@ -19,6 +19,12 @@ const sizeSchema = new mongoose.Schema({
   dimensions: String,
 }, { _id: false });
 
+const productImageSchema = new mongoose.Schema({
+  src: { type: String, required: true },
+  alt: String,
+  position: { type: Number, default: 0 },
+}, { _id: false });
+
 const productSchema = new mongoose.Schema({
   name: { type: String, required: true },
   category: { type: String, required: true },
@@ -33,6 +39,7 @@ const productSchema = new mongoose.Schema({
     premium: String,
     luxury: String,
   },
+  images: [productImageSchema],
   tags: [String],
   active: { type: Boolean, default: true },
   sourceUrl: String,

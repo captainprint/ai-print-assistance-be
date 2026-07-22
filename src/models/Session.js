@@ -1,9 +1,33 @@
 const mongoose = require('mongoose');
 
+const recommendationSchema = new mongoose.Schema({
+  productType: String,
+  paperStock: String,
+  finish: String,
+  size: String,
+  explanation: String,
+  priceRange: String,
+  tags: [String],
+  productUrl: { type: String, default: null },
+}, { _id: false });
+
+const matchedImageSchema = new mongoose.Schema({
+  url: String,
+  altText: String,
+  filename: String,
+}, { _id: false });
+
+const matchedImageGroupSchema = new mongoose.Schema({
+  productType: String,
+  images: [matchedImageSchema],
+}, { _id: false });
+
 const messageSchema = new mongoose.Schema({
   role: { type: String, enum: ['user', 'assistant', 'system'], required: true },
   content: { type: String, required: true },
   timestamp: { type: Date, default: Date.now },
+  recommendations: [recommendationSchema],
+  images: [matchedImageGroupSchema],
 });
 
 const customerProfileSchema = new mongoose.Schema({

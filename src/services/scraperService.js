@@ -69,6 +69,14 @@ function extractByAttributeName(attributes, pattern) {
   return attr?.options ?? [];
 }
 
+function mapImages(wcImages) {
+  return (wcImages || []).map((img, position) => ({
+    src: img.src,
+    alt: img.alt || '',
+    position,
+  }));
+}
+
 function buildPriceRanges(variations) {
   const priced = variations
     .map((v) => ({
@@ -117,7 +125,7 @@ const SKIP_SLUGS = new Set([
 
 async function scrapeAll() {
   console.log('[scraper] GET /wc/v3/products ...');
-  const PRODUCT_FIELDS = 'id,name,slug,type,status,short_description,categories,tags,attributes,permalink';
+  const PRODUCT_FIELDS = 'id,name,slug,type,status,short_description,categories,tags,attributes,permalink,images';
   const wcProducts = await wcGetAll('/products', { status: 'publish', _fields: PRODUCT_FIELDS });
   console.log(`[scraper] Found ${wcProducts.length} products`);
 
@@ -149,6 +157,7 @@ async function scrapeAll() {
         ? sizeOptions.map((opt) => ({ name: opt, dimensions: opt }))
         : [{ name: 'Standard', dimensions: 'See product page' }],
       priceRanges: buildPriceRanges(variations),
+      images: mapImages(wcp.images),
       tags: [...new Set([
         ...wcp.tags.map((t) => t.name),
         ...wcp.categories.map((c) => c.name),

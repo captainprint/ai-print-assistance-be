@@ -3,6 +3,7 @@ const Session = require('../models/Session');
 const { MAX_USER_MESSAGES } = require('../models/Session');
 const { chat, chatStream } = require('../services/aiService');
 const { getMatchingImages } = require('../services/imageService');
+const { attachProductLinks } = require('../services/productService');
 const { notifyHandoff } = require('../services/handoffService');
 
 // Challenge: the AI occasionally set needsHuman=true on the same turn it first
@@ -100,7 +101,6 @@ async function sendMessage(req, res, next) {
     const recentMessages = session.messages.slice(-20);
     const aiResponse = await chat(recentMessages, session.customerProfile.toObject?.() || session.customerProfile);
 
-    session.messages.push({ role: 'assistant', content: aiResponse.message });
     session.stage = aiResponse.stage;
 
     if (aiResponse.customerProfile) {
@@ -120,6 +120,17 @@ async function sendMessage(req, res, next) {
       session.status = 'completed';
     }
 
+    let images = [];
+    let recommendations = aiResponse.recommendations || [];
+    if (recommendations.length > 0) {
+      [images, recommendations] = await Promise.all([
+        getMatchingImages(recommendations),
+        attachProductLinks(recommendations),
+      ]);
+    }
+
+    session.messages.push({ role: 'assistant', content: aiResponse.message, recommendations, images });
+
     session.processingLock = false;
     await session.save();
 
@@ -129,17 +140,12 @@ async function sendMessage(req, res, next) {
       );
     }
 
-    let images = [];
-    if (aiResponse.recommendations && aiResponse.recommendations.length > 0) {
-      images = await getMatchingImages(aiResponse.recommendations);
-    }
-
     res.json({
       message: aiResponse.message,
       stage: aiResponse.stage,
       needsHuman,
       humanReason: needsHuman ? aiResponse.humanReason || null : null,
-      recommendations: aiResponse.recommendations || [],
+      recommendations,
       images,
     });
   } catch (err) {
@@ -220,7 +226,6 @@ async function streamMessage(req, res, next) {
       return res.end();
     }
 
-    session.messages.push({ role: 'assistant', content: aiResponse.message });
     session.stage = aiResponse.stage;
 
     if (aiResponse.customerProfile) {
@@ -240,6 +245,17 @@ async function streamMessage(req, res, next) {
       session.status = 'completed';
     }
 
+    let images = [];
+    let recommendations = aiResponse.recommendations || [];
+    if (recommendations.length > 0) {
+      [images, recommendations] = await Promise.all([
+        getMatchingImages(recommendations),
+        attachProductLinks(recommendations),
+      ]);
+    }
+
+    session.messages.push({ role: 'assistant', content: aiResponse.message, recommendations, images });
+
     session.processingLock = false;
     await session.save();
 
@@ -249,17 +265,12 @@ async function streamMessage(req, res, next) {
       );
     }
 
-    let images = [];
-    if (aiResponse.recommendations && aiResponse.recommendations.length > 0) {
-      images = await getMatchingImages(aiResponse.recommendations);
-    }
-
     const finalPayload = JSON.stringify({
       message: aiResponse.message,
       stage: aiResponse.stage,
       needsHuman,
       humanReason: needsHuman ? aiResponse.humanReason || null : null,
-      recommendations: aiResponse.recommendations || [],
+      recommendations,
       images,
     });
 
