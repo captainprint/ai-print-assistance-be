@@ -15,6 +15,15 @@ function hasCompleteContactInfo(session) {
   return !!(profile && profile.name && profile.email && profile.phone);
 }
 
+// Challenge: the model's customerProfile fields are typed ["string", "null"]
+// in the JSON schema, but nothing stops it from emitting the literal string
+// "null" instead of the JSON null — a truthy value that then gets saved as
+// real profile data and bypasses every `|| fallback` downstream.
+// Fix: treat that string (any casing/whitespace) as no value at all.
+function isRealValue(value) {
+  return !!value && String(value).trim().toLowerCase() !== 'null';
+}
+
 async function createSession(req, res, next) {
   try {
     const sessionId = uuidv4();
@@ -105,7 +114,7 @@ async function sendMessage(req, res, next) {
 
     if (aiResponse.customerProfile) {
       Object.entries(aiResponse.customerProfile).forEach(([key, value]) => {
-        if (value) session.customerProfile[key] = value;
+        if (isRealValue(value)) session.customerProfile[key] = value;
       });
       session.markModified('customerProfile');
     }
@@ -230,7 +239,7 @@ async function streamMessage(req, res, next) {
 
     if (aiResponse.customerProfile) {
       Object.entries(aiResponse.customerProfile).forEach(([key, value]) => {
-        if (value) session.customerProfile[key] = value;
+        if (isRealValue(value)) session.customerProfile[key] = value;
       });
       session.markModified('customerProfile');
     }
