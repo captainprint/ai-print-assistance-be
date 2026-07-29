@@ -121,6 +121,7 @@ const SKIP_SLUGS = new Set([
   'free-easter-coloring-books',
   'football-fan-essentials-pack',
   'brochures-flyers',
+  'test-product',
 ]);
 
 async function scrapeAll() {

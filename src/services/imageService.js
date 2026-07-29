@@ -1,5 +1,6 @@
 const Image = require('../models/Image');
 const { findMatchingProduct } = require('./productService');
+const { escapeRegExp } = require('../utils/regexUtils');
 
 // The curated Image collection was seeded with placeholder assets on
 // cdn.example.com (a reserved documentation domain — RFC 2606) that were
@@ -29,17 +30,27 @@ async function getMatchingImages(recommendations, limit = 3) {
 
   for (const rec of recommendations) {
     const { productType, tags = [] } = rec;
+    if (!productType) {
+      results.push({ productType, images: [] });
+      continue;
+    }
+
+    // productType comes straight from the model's JSON output, unconstrained
+    // by the schema (no enum) — escape it before building a RegExp so a
+    // paraphrased name containing (), +, *, [ etc. can't throw and take down
+    // the request.
+    const productTypePattern = new RegExp(escapeRegExp(productType), 'i');
 
     const styleKeywords = ['modern', 'classic', 'luxury', 'minimal', 'bold', 'playful', 'elegant', 'professional'];
     const styles = tags.filter((t) => styleKeywords.includes(t.toLowerCase()));
 
     const query = {
-      'tags.productType': { $regex: new RegExp(productType, 'i') },
+      'tags.productType': { $regex: productTypePattern },
       active: true,
     };
 
     if (styles.length > 0) {
-      query['tags.style'] = { $in: styles.map((s) => new RegExp(s, 'i')) };
+      query['tags.style'] = { $in: styles.map((s) => new RegExp(escapeRegExp(s), 'i')) };
     }
 
     const images = keepReal(
@@ -49,7 +60,7 @@ async function getMatchingImages(recommendations, limit = 3) {
     if (images.length === 0) {
       const fallback = keepReal(
         await Image.find({
-          'tags.productType': { $regex: new RegExp(productType, 'i') },
+          'tags.productType': { $regex: productTypePattern },
           active: true,
         }).lean().select('url altText tags filename')
       ).slice(0, limit);
