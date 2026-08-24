@@ -191,4 +191,65 @@ async function* chatStream(sessionMessages, currentProfile, messageBudget) {
   yield { type: 'done', data: parsed };
 }
 
-module.exports = { chat, chatStream };
+const SUMMARY_MODEL = process.env.OPENAI_SUMMARY_MODEL || MODEL;
+
+function buildConversationTranscript(session) {
+  const events = [
+    ...(session.messages || [])
+      .filter((m) => m.role !== 'system')
+      .map((m) => ({
+        speaker: m.role === 'user' ? 'Customer' : 'AI Assistant',
+        text: m.content,
+        timestamp: m.timestamp,
+      })),
+    ...(session.staffReplies || []).map((r) => ({
+      speaker: `Staff (${r.staffName})`,
+      text: r.message,
+      timestamp: r.timestamp,
+    })),
+    ...(session.customerReplies || []).map((r) => ({
+      speaker: 'Customer',
+      text: r.message,
+      timestamp: r.timestamp,
+    })),
+  ].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+  return events.map((e) => `${e.speaker}: ${e.text}`).join('\n');
+}
+
+async function summarizeConversation(session) {
+  const transcript = buildConversationTranscript(session);
+  if (!transcript.trim()) return null;
+
+  const profileHint = Object.entries(session.customerProfile || {})
+    .filter(([, v]) => v)
+    .map(([k, v]) => `${k}: ${v}`)
+    .join(', ');
+
+  const prompt = [
+    'Summarize this customer support conversation for a staff member who has not read it yet, in 3-5 sentences.',
+    'Cover: what the customer wants, key details already captured, where things currently stand, and what (if anything) needs to happen next.',
+    session.humanReason ? `The conversation was escalated to a human because: ${session.humanReason}.` : '',
+    profileHint ? `Known customer profile: ${profileHint}.` : '',
+    '',
+    'Conversation:',
+    transcript,
+  ].filter(Boolean).join('\n');
+
+  const response = await openai.chat.completions.create({
+    model: SUMMARY_MODEL,
+    messages: [
+      {
+        role: 'system',
+        content: 'You write short, factual summaries of customer support conversations for busy staff. Plain sentences only — no markdown, no headers, no bullet points.',
+      },
+      { role: 'user', content: prompt },
+    ],
+    temperature: 0.3,
+    max_tokens: 220,
+  });
+
+  return response.choices[0].message.content.trim();
+}
+
+module.exports = { chat, chatStream, summarizeConversation };

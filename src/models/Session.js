@@ -82,6 +82,13 @@ const sessionSchema = new mongoose.Schema({
   closedAt: { type: Date, default: null },
   staffReplies: [staffReplySchema],
   customerReplies: [customerReplySchema],
+  // AI-generated recap of the conversation so far, so staff don't have to
+  // read the full thread to get up to speed. Regenerated lazily whenever
+  // new activity (messages/staffReplies/customerReplies) is found on open —
+  // summaryMessageCount is the total event count it was generated from.
+  summary: { type: String, default: null },
+  summaryGeneratedAt: { type: Date, default: null },
+  summaryMessageCount: { type: Number, default: 0 },
 }, { timestamps: true });
 
 module.exports = mongoose.model('Session', sessionSchema);

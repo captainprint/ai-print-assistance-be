@@ -8,6 +8,7 @@ const {
   sendStaffCustomerRepliedEmail,
 } = require('../services/emailService');
 const { notifyHandoff } = require('../services/handoffService');
+const { summarizeConversation } = require('../services/aiService');
 
 function sessionSummary(session) {
   const latest = [
@@ -46,7 +47,38 @@ function sessionDetail(session) {
     handoffNotifiedAt: session.handoffNotifiedAt,
     createdAt: session.createdAt,
     updatedAt: session.updatedAt,
+    summary: session.summary,
+    summaryGeneratedAt: session.summaryGeneratedAt,
   };
+}
+
+function conversationEventCount(session) {
+  return (
+    (session.messages?.length || 0) +
+    (session.staffReplies?.length || 0) +
+    (session.customerReplies?.length || 0)
+  );
+}
+
+// Keeps session.summary fresh: regenerates it only when new activity has
+// happened since the last summary, so opening the same conversation twice
+// in a row doesn't re-call the model. Never blocks conversation loading —
+// a failed summary just means the old (or no) summary is shown.
+async function ensureSummary(session) {
+  const count = conversationEventCount(session);
+  if (count === 0 || (session.summary && session.summaryMessageCount === count)) return;
+
+  try {
+    const summary = await summarizeConversation(session);
+    if (summary) {
+      session.summary = summary;
+      session.summaryMessageCount = count;
+      session.summaryGeneratedAt = new Date();
+      await session.save();
+    }
+  } catch (err) {
+    console.error('[handoff] Summary generation failed:', err.message);
+  }
 }
 
 async function listConversations(req, res, next) {
@@ -128,6 +160,7 @@ async function getConversation(req, res, next) {
     if (!canStaffAccess(req, session)) {
       return res.status(403).json({ message: 'You do not have access to this conversation' });
     }
+    await ensureSummary(session);
     res.json(sessionDetail(session));
   } catch (err) {
     next(err);
@@ -146,6 +179,7 @@ async function viewViaToken(req, res, next) {
       .populate('assignedTo', 'fullName email role');
     if (!session) return res.status(404).json({ message: 'Conversation not found' });
 
+    await ensureSummary(session);
     res.json(sessionDetail(session));
   } catch (err) {
     next(err);
