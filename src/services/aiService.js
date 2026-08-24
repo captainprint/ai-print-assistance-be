@@ -2,6 +2,7 @@ const openai = require('../config/openai');
 const Product = require('../models/Product');
 const { buildKnowledgeBaseSection } = require('./knowledgeBaseService');
 const { renderSystemPrompt } = require('../prompts/systemPrompt');
+const { CATEGORY_PAGE_URLS } = require('../config/sitePages');
 
 const MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 
@@ -100,11 +101,20 @@ async function buildSystemPrompt(sessionMessages = []) {
       const stocks = p.paperStocks.map((s) => s.name).join(', ');
       const finishes = p.finishes.map((f) => f.name).join(', ');
       const sizes = p.sizes.map((s) => s.dimensions || s.name).join(', ');
-      return `- ${p.name}: stocks: [${stocks}], finishes: [${finishes}], sizes: [${sizes}]`;
+      const pageLine = p.sourceUrl ? ` — page: ${p.sourceUrl}` : '';
+      return `- ${p.name} (category: ${p.category}): stocks: [${stocks}], finishes: [${finishes}], sizes: [${sizes}]${pageLine}`;
     })
     .join('\n');
 
-  return renderSystemPrompt({ productSummary, knowledgeBaseSection });
+  // Only advertise a category page for categories that currently have
+  // active products — an empty/removed category shouldn't get linked.
+  const categories = [...new Set(products.map((p) => p.category).filter(Boolean))];
+  const categoryPages = categories
+    .filter((c) => CATEGORY_PAGE_URLS[c])
+    .map((c) => `- ${c}: ${CATEGORY_PAGE_URLS[c]}`)
+    .join('\n');
+
+  return renderSystemPrompt({ productSummary, knowledgeBaseSection, categoryPages });
 }
 
 async function chat(sessionMessages, currentProfile, messageBudget) {
