@@ -124,56 +124,65 @@ const SKIP_SLUGS = new Set([
   'test-product',
 ]);
 
+// Cap concurrent in-flight curl subprocesses: high enough to cut total scrape
+// time from ~2min (fully sequential) to a few seconds, low enough to avoid
+// tripping ShieldSecurity's rate limiting on the store.
+const SCRAPE_CONCURRENCY = 15;
+
+async function mapWithConcurrency(items, limit, fn) {
+  const results = [];
+  for (let i = 0; i < items.length; i += limit) {
+    const batch = items.slice(i, i + limit);
+    results.push(...await Promise.all(batch.map(fn)));
+  }
+  return results;
+}
+
+async function buildProduct(wcp) {
+  const variations = wcp.type === 'variable'
+    ? await fetchVariations(wcp.id)
+    : [];
+
+  const paperStockOptions = extractByAttributeName(wcp.attributes, /paper|stock|material|cardstock/i);
+  const finishOptions     = extractByAttributeName(wcp.attributes, /finish|coating|laminate/i);
+  const sizeOptions       = extractByAttributeName(wcp.attributes, /size|dimension/i);
+
+  const product = {
+    name:        wcp.name,
+    category:    mapCategory(wcp.categories),
+    description: stripHtml(wcp.short_description) || stripHtml(wcp.description).slice(0, 400),
+    minQuantity: deriveMinQuantity(variations, wcp.attributes),
+    paperStocks: paperStockOptions.length
+      ? paperStockOptions.map((opt) => ({ name: opt, description: '' }))
+      : [{ name: 'Standard', description: 'See product page' }],
+    finishes: finishOptions.map((opt) => ({ name: opt, description: '' })),
+    sizes: sizeOptions.length
+      ? sizeOptions.map((opt) => ({ name: opt, dimensions: opt }))
+      : [{ name: 'Standard', dimensions: 'See product page' }],
+    priceRanges: buildPriceRanges(variations),
+    images: mapImages(wcp.images),
+    tags: [...new Set([
+      ...wcp.tags.map((t) => t.name),
+      ...wcp.categories.map((c) => c.name),
+      wcp.name,
+    ])],
+    sourceUrl:   wcp.permalink,
+    wcProductId: wcp.id,
+    scrapedAt:   new Date(),
+  };
+
+  console.log(`  ${wcp.name} ... OK`);
+  return product;
+}
+
 async function scrapeAll() {
   console.log('[scraper] GET /wc/v3/products ...');
   const PRODUCT_FIELDS = 'id,name,slug,type,status,short_description,categories,tags,attributes,permalink,images';
-  const wcProducts = await wcGetAll('/products', { status: 'publish', _fields: PRODUCT_FIELDS });
+  const wcProducts = (await wcGetAll('/products', { status: 'publish', _fields: PRODUCT_FIELDS }))
+    .filter((wcp) => !SKIP_SLUGS.has(wcp.slug));
   console.log(`[scraper] Found ${wcProducts.length} products`);
 
-  const results = [];
-
-  for (const wcp of wcProducts) {
-    if (SKIP_SLUGS.has(wcp.slug)) continue;
-
-    process.stdout.write(`  ${wcp.name} ... `);
-
-    const variations = wcp.type === 'variable'
-      ? await fetchVariations(wcp.id)
-      : [];
-
-    const paperStockOptions = extractByAttributeName(wcp.attributes, /paper|stock|material|cardstock/i);
-    const finishOptions     = extractByAttributeName(wcp.attributes, /finish|coating|laminate/i);
-    const sizeOptions       = extractByAttributeName(wcp.attributes, /size|dimension/i);
-
-    const product = {
-      name:        wcp.name,
-      category:    mapCategory(wcp.categories),
-      description: stripHtml(wcp.short_description) || stripHtml(wcp.description).slice(0, 400),
-      minQuantity: deriveMinQuantity(variations, wcp.attributes),
-      paperStocks: paperStockOptions.length
-        ? paperStockOptions.map((opt) => ({ name: opt, description: '' }))
-        : [{ name: 'Standard', description: 'See product page' }],
-      finishes: finishOptions.map((opt) => ({ name: opt, description: '' })),
-      sizes: sizeOptions.length
-        ? sizeOptions.map((opt) => ({ name: opt, dimensions: opt }))
-        : [{ name: 'Standard', dimensions: 'See product page' }],
-      priceRanges: buildPriceRanges(variations),
-      images: mapImages(wcp.images),
-      tags: [...new Set([
-        ...wcp.tags.map((t) => t.name),
-        ...wcp.categories.map((c) => c.name),
-        wcp.name,
-      ])],
-      sourceUrl:   wcp.permalink,
-      wcProductId: wcp.id,
-      scrapedAt:   new Date(),
-    };
-
-    results.push(product);
-    console.log('OK');
-  }
-
-  return results;
+  return mapWithConcurrency(wcProducts, SCRAPE_CONCURRENCY, buildProduct);
 }
 
 module.exports = { scrapeAll };
