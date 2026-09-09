@@ -5,6 +5,18 @@ const { chat, chatStream } = require('../services/aiService');
 const { getMatchingImages } = require('../services/imageService');
 const { attachProductLinks } = require('../services/productService');
 const { notifyHandoff } = require('../services/handoffService');
+const { detectSpam } = require('../services/spamFilterService');
+
+function canned(reply, stage) {
+  return {
+    message: reply,
+    stage: stage || 'greeting',
+    needsHuman: false,
+    humanReason: null,
+    customerProfile: {},
+    recommendations: [],
+  };
+}
 
 // Challenge: the AI occasionally set needsHuman=true on the same turn it first
 // asks for name/email/phone, before actually collecting them, locking the
@@ -102,14 +114,25 @@ async function sendMessage(req, res, next) {
     session.processingLock = true;
     await session.save();
 
+    const previousUserMessages = session.messages
+      .filter((m) => m.role === 'user')
+      .map((m) => m.content);
+
     session.messages.push({ role: 'user', content: message });
     session.userMessageCount += 1;
 
-    // Challenge: Full conversation history grew too large and exceeded OpenAI context window.
-    // Fix: Send only last 20 messages; inject customer profile separately to preserve context.
-    const recentMessages = session.messages.slice(-20);
-    const messageBudget = { count: session.userMessageCount, max: MAX_USER_MESSAGES };
-    const aiResponse = await chat(recentMessages, session.customerProfile.toObject?.() || session.customerProfile, messageBudget);
+    const spamCheck = detectSpam(message, previousUserMessages);
+
+    let aiResponse;
+    if (spamCheck.spam) {
+      aiResponse = canned(spamCheck.reply, session.stage);
+    } else {
+      // Challenge: Full conversation history grew too large and exceeded OpenAI context window.
+      // Fix: Send only last 20 messages; inject customer profile separately to preserve context.
+      const recentMessages = session.messages.slice(-20);
+      const messageBudget = { count: session.userMessageCount, max: MAX_USER_MESSAGES };
+      aiResponse = await chat(recentMessages, session.customerProfile.toObject?.() || session.customerProfile, messageBudget);
+    }
 
     session.stage = aiResponse.stage;
 
@@ -212,30 +235,42 @@ async function streamMessage(req, res, next) {
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders();
 
+    const previousUserMessages = session.messages
+      .filter((m) => m.role === 'user')
+      .map((m) => m.content);
+
     session.messages.push({ role: 'user', content: message });
     session.userMessageCount += 1;
-    const recentMessages = session.messages.slice(-20);
-    const messageBudget = { count: session.userMessageCount, max: MAX_USER_MESSAGES };
 
-    const generator = chatStream(
-      recentMessages,
-      session.customerProfile.toObject?.() || session.customerProfile,
-      messageBudget
-    );
+    const spamCheck = detectSpam(message, previousUserMessages);
 
     let aiResponse = null;
 
-    for await (const event of generator) {
-      if (event.type === 'token') {
-        res.write(`event: token\ndata: ${JSON.stringify({ chunk: event.data })}\n\n`);
-      } else if (event.type === 'done') {
-        aiResponse = event.data;
-      }
-    }
+    if (spamCheck.spam) {
+      aiResponse = canned(spamCheck.reply, session.stage);
+      res.write(`event: token\ndata: ${JSON.stringify({ chunk: aiResponse.message })}\n\n`);
+    } else {
+      const recentMessages = session.messages.slice(-20);
+      const messageBudget = { count: session.userMessageCount, max: MAX_USER_MESSAGES };
 
-    if (!aiResponse) {
-      res.write('event: error\ndata: {"error":"AI response parsing failed"}\n\n');
-      return res.end();
+      const generator = chatStream(
+        recentMessages,
+        session.customerProfile.toObject?.() || session.customerProfile,
+        messageBudget
+      );
+
+      for await (const event of generator) {
+        if (event.type === 'token') {
+          res.write(`event: token\ndata: ${JSON.stringify({ chunk: event.data })}\n\n`);
+        } else if (event.type === 'done') {
+          aiResponse = event.data;
+        }
+      }
+
+      if (!aiResponse) {
+        res.write('event: error\ndata: {"error":"AI response parsing failed"}\n\n');
+        return res.end();
+      }
     }
 
     session.stage = aiResponse.stage;
