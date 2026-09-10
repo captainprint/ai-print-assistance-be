@@ -7,7 +7,7 @@ const VOWELS = /[aeiouAEIOU]/;
 
 const CANNED_REPLIES = {
   empty: "Looks like that came through empty — what can I help you get printed?",
-  duplicate: "I've got that one already — no need to resend! Anything else about your print project I can help with?",
+  duplicate: "No worries at all! I've got your message. 😊 Is there anything else about your printing project I can help you with?",
   gibberish: "I'm not quite catching that — let me know what you're looking to get printed and I'll take it from there.",
 };
 
