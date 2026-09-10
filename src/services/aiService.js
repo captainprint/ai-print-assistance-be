@@ -101,8 +101,12 @@ async function buildSystemPrompt(sessionMessages = []) {
       const stocks = p.paperStocks.map((s) => s.name).join(', ');
       const finishes = p.finishes.map((f) => f.name).join(', ');
       const sizes = p.sizes.map((s) => s.dimensions || s.name).join(', ');
+      const otherOptions = (p.options || [])
+        .map((o) => `${o.name}: [${o.values.join(', ')}]`)
+        .join(', ');
+      const optionsLine = otherOptions ? `, options: {${otherOptions}}` : '';
       const pageLine = p.sourceUrl ? ` — page: ${p.sourceUrl}` : '';
-      return `- ${p.name} (category: ${p.category}): stocks: [${stocks}], finishes: [${finishes}], sizes: [${sizes}]${pageLine}`;
+      return `- ${p.name} (category: ${p.category}): stocks: [${stocks}], finishes: [${finishes}], sizes: [${sizes}]${optionsLine}${pageLine}`;
     })
     .join('\n');
 

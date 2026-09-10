@@ -64,9 +64,31 @@ function mapCategory(wcCategories) {
   return 'Marketing';
 }
 
+const HTML_ENTITIES = { amp: '&', quot: '"', '#039': "'", apos: "'", lt: '<', gt: '>' };
+function decodeEntities(str) {
+  return (str || '').replace(/&(#039|amp|quot|apos|lt|gt);/g, (_, e) => HTML_ENTITIES[e]);
+}
+
 function extractByAttributeName(attributes, pattern) {
   const attr = attributes.find((a) => pattern.test(a.name));
-  return attr?.options ?? [];
+  return (attr?.options ?? []).map(decodeEntities);
+}
+
+// The site's order form exposes every WC attribute (Print Type, Sheets per
+// Pad, Sides, Shape, Thickness, Ink, ...), not just paper/finish/size — those
+// three get their own typed fields below, everything else used to be
+// silently dropped. Capture the rest generically so the AI assistant and API
+// consumers actually see the full form.
+const KNOWN_ATTRIBUTE_PATTERNS = [
+  /paper|stock|material|cardstock/i,
+  /finish|coating|laminate/i,
+  /size|dimension/i,
+];
+
+function extractOtherOptions(attributes) {
+  return attributes
+    .filter((a) => a.options?.length && !KNOWN_ATTRIBUTE_PATTERNS.some((p) => p.test(a.name)))
+    .map((a) => ({ name: a.name, values: a.options.map(decodeEntities) }));
 }
 
 function mapImages(wcImages) {
@@ -146,6 +168,7 @@ async function buildProduct(wcp) {
   const paperStockOptions = extractByAttributeName(wcp.attributes, /paper|stock|material|cardstock/i);
   const finishOptions     = extractByAttributeName(wcp.attributes, /finish|coating|laminate/i);
   const sizeOptions       = extractByAttributeName(wcp.attributes, /size|dimension/i);
+  const otherOptions      = extractOtherOptions(wcp.attributes);
 
   const product = {
     name:        wcp.name,
@@ -159,6 +182,7 @@ async function buildProduct(wcp) {
     sizes: sizeOptions.length
       ? sizeOptions.map((opt) => ({ name: opt, dimensions: opt }))
       : [{ name: 'Standard', dimensions: 'See product page' }],
+    options: otherOptions,
     priceRanges: buildPriceRanges(variations),
     images: mapImages(wcp.images),
     tags: [...new Set([

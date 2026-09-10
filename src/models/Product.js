@@ -19,6 +19,11 @@ const sizeSchema = new mongoose.Schema({
   dimensions: String,
 }, { _id: false });
 
+const optionSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  values: [String],
+}, { _id: false });
+
 const productImageSchema = new mongoose.Schema({
   src: { type: String, required: true },
   alt: String,
@@ -33,6 +38,7 @@ const productSchema = new mongoose.Schema({
   paperStocks: [paperStockSchema],
   finishes: [finishSchema],
   sizes: [sizeSchema],
+  options: [optionSchema],
   priceRanges: {
     economy: String,
     standard: String,
