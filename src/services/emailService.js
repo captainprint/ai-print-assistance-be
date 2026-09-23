@@ -79,6 +79,47 @@ async function sendStaffHandoffEmail({ to, staffName, session, handoffToken }) {
   });
 }
 
+async function sendStaffAssignedEmail({ to, staffName, assignedByName, isSelfAssigned, session, handoffToken }) {
+  const p = session.customerProfile || {};
+  const customerName = p.name || 'a customer';
+  const dashboardLink = `${FRONTEND}/handoff/view?token=${handoffToken}`;
+  const intro = isSelfAssigned
+    ? `Hi ${staffName}, you've assigned the conversation with <strong>${customerName}</strong> to yourself. Thanks for jumping in!`
+    : `Hi ${staffName}, <strong>${assignedByName}</strong> has assigned you the conversation with <strong>${customerName}</strong>. Thanks for taking care of them!`;
+
+  const html = baseTemplate(`
+    <h2 style="margin:0 0 8px;color:#111827;font-size:22px">${isSelfAssigned ? 'You took this conversation' : 'A conversation has been assigned to you'}</h2>
+    <p style="margin:0 0 24px;color:#6b7280;font-size:14px">${intro}</p>
+
+    <div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:8px;padding:16px 20px;margin-bottom:24px">
+      <p style="margin:0 0 4px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#4338ca">Next step</p>
+      <p style="margin:0;font-size:14px;color:#3730a3">Review the conversation and reply to ${customerName}. They'll be notified by email when you respond.</p>
+    </div>
+
+    <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:20px;margin-bottom:24px">
+      <p style="margin:0 0 12px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#6b7280">Customer Info</p>
+      ${profileSummary(p)}
+    </div>
+
+    ${session.humanReason ? `<div style="background:#fef3c7;border-left:4px solid #d97706;padding:12px 16px;border-radius:0 6px 6px 0;margin-bottom:24px">
+      <p style="margin:0;font-size:13px;color:#92400e"><strong>Reason for escalation:</strong> ${session.humanReason}</p>
+    </div>` : ''}
+
+    <a href="${dashboardLink}" style="display:inline-block;background:#4f46e5;color:#ffffff;text-decoration:none;padding:14px 28px;border-radius:8px;font-size:14px;font-weight:600;margin-bottom:24px">Open Conversation →</a>
+
+    <p style="margin:0;font-size:12px;color:#9ca3af">This link expires in 7 days. You must be logged into the dashboard to view the conversation.</p>
+  `);
+
+  await createTransporter().sendMail({
+    from: FROM,
+    to,
+    subject: isSelfAssigned
+      ? `[Assigned] You took the conversation with ${customerName}`
+      : `[Assigned] ${assignedByName} assigned you the conversation with ${customerName}`,
+    html,
+  });
+}
+
 async function sendCustomerConfirmationEmail({ session, customerToken }) {
   const p = session.customerProfile || {};
   if (!p.email) return;
@@ -175,6 +216,7 @@ async function sendStaffCustomerRepliedEmail({ toEmail, staffName, session, cust
 
 module.exports = {
   sendStaffHandoffEmail,
+  sendStaffAssignedEmail,
   sendCustomerConfirmationEmail,
   sendConversationClaimedEmail,
   sendCustomerReplyEmail,

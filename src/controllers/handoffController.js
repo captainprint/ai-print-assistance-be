@@ -243,9 +243,9 @@ async function acceptConversation(req, res, next) {
   }
 }
 
-async function notifyAssignment(session, targetUser) {
+async function notifyAssignment(session, targetUser, assigner) {
   const { v4: uuidv4 } = require('uuid');
-  const { sendStaffHandoffEmail } = require('../services/emailService');
+  const { sendStaffAssignedEmail } = require('../services/emailService');
   const newToken = uuidv4();
   await HandoffToken.create({
     token: newToken,
@@ -254,15 +254,24 @@ async function notifyAssignment(session, targetUser) {
     expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
   });
 
-  sendStaffHandoffEmail({
+  sendStaffAssignedEmail({
     to: targetUser.email,
     staffName: targetUser.fullName,
+    assignedByName: assigner.name,
+    isSelfAssigned: assigner.id !== null && String(assigner.id) === String(targetUser._id),
     session,
     handoffToken: newToken,
   }).catch((err) => console.error('[handoff] Assign email failed:', err.message));
 }
 
-async function assignSessionToUser(session, userId) {
+// Admin logs in without a User record (no req.user.id), so it's named "Admin".
+async function resolveAssigner(req) {
+  if (!req.user?.id) return { id: null, name: 'Admin' };
+  const user = await User.findById(req.user.id).select('fullName');
+  return { id: req.user.id, name: user?.fullName || 'A teammate' };
+}
+
+async function assignSessionToUser(session, userId, assigner) {
   const targetUser = await User.findById(userId).select('fullName email');
   if (!targetUser) return { error: 'Target user not found' };
 
@@ -270,7 +279,7 @@ async function assignSessionToUser(session, userId) {
   session.acceptedAt = new Date();
   await session.save();
 
-  await notifyAssignment(session, targetUser);
+  await notifyAssignment(session, targetUser, assigner);
 
   return {
     assignedTo: { _id: targetUser._id, fullName: targetUser.fullName, email: targetUser.email },
@@ -291,7 +300,7 @@ async function assignConversation(req, res, next) {
     const session = await Session.findOne({ sessionId: record.sessionId });
     if (!session) return res.status(404).json({ message: 'Conversation not found' });
 
-    const result = await assignSessionToUser(session, userId);
+    const result = await assignSessionToUser(session, userId, await resolveAssigner(req));
     if (result.error) return res.status(404).json({ message: result.error });
 
     res.json({ success: true, assignedTo: result.assignedTo });
@@ -311,7 +320,7 @@ async function assignConversationBySession(req, res, next) {
       return res.status(403).json({ message: 'You do not have access to this conversation' });
     }
 
-    const result = await assignSessionToUser(session, userId);
+    const result = await assignSessionToUser(session, userId, await resolveAssigner(req));
     if (result.error) return res.status(404).json({ message: result.error });
 
     res.json({ success: true, assignedTo: result.assignedTo });
