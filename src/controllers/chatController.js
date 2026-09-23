@@ -6,6 +6,7 @@ const { getMatchingImages } = require('../services/imageService');
 const { attachProductLinks } = require('../services/productService');
 const { notifyHandoff } = require('../services/handoffService');
 const { detectSpam } = require('../services/spamFilterService');
+const { saveCustomerSafely } = require('../services/customerService');
 
 function canned(reply, stage) {
   return {
@@ -34,6 +35,11 @@ function hasCompleteContactInfo(session) {
 // Fix: treat that string (any casing/whitespace) as no value at all.
 function isRealValue(value) {
   return !!value && String(value).trim().toLowerCase() !== 'null';
+}
+
+function contactSnapshot(session) {
+  const { name, email, phone } = session.customerProfile || {};
+  return JSON.stringify([name, email, phone]);
 }
 
 async function createSession(req, res, next) {
@@ -136,12 +142,14 @@ async function sendMessage(req, res, next) {
 
     session.stage = aiResponse.stage;
 
+    const contactBefore = contactSnapshot(session);
     if (aiResponse.customerProfile) {
       Object.entries(aiResponse.customerProfile).forEach(([key, value]) => {
         if (isRealValue(value)) session.customerProfile[key] = value;
       });
       session.markModified('customerProfile');
     }
+    const contactChanged = contactSnapshot(session) !== contactBefore && hasCompleteContactInfo(session);
 
     const wasHumanRequired = session.status === 'human_required';
     const needsHuman = aiResponse.needsHuman && hasCompleteContactInfo(session);
@@ -166,6 +174,8 @@ async function sendMessage(req, res, next) {
 
     session.processingLock = false;
     await session.save();
+
+    if (contactChanged) await saveCustomerSafely(session);
 
     if (needsHuman && !wasHumanRequired) {
       notifyHandoff(session).catch((err) =>
@@ -275,12 +285,14 @@ async function streamMessage(req, res, next) {
 
     session.stage = aiResponse.stage;
 
+    const contactBefore = contactSnapshot(session);
     if (aiResponse.customerProfile) {
       Object.entries(aiResponse.customerProfile).forEach(([key, value]) => {
         if (isRealValue(value)) session.customerProfile[key] = value;
       });
       session.markModified('customerProfile');
     }
+    const contactChanged = contactSnapshot(session) !== contactBefore && hasCompleteContactInfo(session);
 
     const wasHumanRequiredStream = session.status === 'human_required';
     const needsHuman = aiResponse.needsHuman && hasCompleteContactInfo(session);
@@ -305,6 +317,8 @@ async function streamMessage(req, res, next) {
 
     session.processingLock = false;
     await session.save();
+
+    if (contactChanged) await saveCustomerSafely(session);
 
     if (needsHuman && !wasHumanRequiredStream) {
       notifyHandoff(session).catch((err) =>
