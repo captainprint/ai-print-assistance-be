@@ -91,6 +91,36 @@ function buildMessageBudgetHint(messageBudget) {
   return `Heads up: this conversation is close to its message limit (${messageBudget.count}/${messageBudget.max} messages used). Start wrapping up now — move toward a recommendation or collecting contact info instead of asking more discovery questions.`;
 }
 
+const CONTACT_FIELDS = ['name', 'email', 'phone'];
+
+// Challenge: the profile hint only listed fields that had values, so the model
+// never saw name/email/phone as missing and would jump straight to the handoff
+// message when the customer agreed to be connected — without collecting any.
+// Fix: always state which contact fields are collected and which are missing.
+function buildProfileHints(currentProfile) {
+  const profile = currentProfile || {};
+  const hints = [];
+
+  const profileHint = Object.entries(profile)
+    .filter(([, v]) => v)
+    .map(([k, v]) => `${k}: ${v}`)
+    .join(', ');
+  if (profileHint) {
+    hints.push({ role: 'system', content: `Customer profile so far: ${profileHint}` });
+  }
+
+  const missing = CONTACT_FIELDS.filter((f) => !profile[f]);
+  const collected = CONTACT_FIELDS.filter((f) => profile[f]);
+  hints.push({
+    role: 'system',
+    content: missing.length
+      ? `Contact info status — collected: ${collected.join(', ') || 'none'}; missing: ${missing.join(', ')}. Do not send the handoff message or set needsHuman to true until nothing is missing.`
+      : 'Contact info status — name, email, and phone are all collected.',
+  });
+
+  return hints;
+}
+
 async function buildSystemPrompt(sessionMessages = []) {
   const [products, knowledgeBaseSection] = await Promise.all([
     Product.find({ active: true }).lean(),
@@ -129,17 +159,7 @@ async function chat(sessionMessages, currentProfile, messageBudget) {
     ...sessionMessages.map((m) => ({ role: m.role, content: m.content })),
   ];
 
-  const profileHint = Object.entries(currentProfile || {})
-    .filter(([, v]) => v)
-    .map(([k, v]) => `${k}: ${v}`)
-    .join(', ');
-
-  if (profileHint) {
-    messages.splice(1, 0, {
-      role: 'system',
-      content: `Customer profile so far: ${profileHint}`,
-    });
-  }
+  messages.splice(1, 0, ...buildProfileHints(currentProfile));
 
   const budgetHint = buildMessageBudgetHint(messageBudget);
   if (budgetHint) {
@@ -166,17 +186,7 @@ async function* chatStream(sessionMessages, currentProfile, messageBudget) {
     ...sessionMessages.map((m) => ({ role: m.role, content: m.content })),
   ];
 
-  const profileHint = Object.entries(currentProfile || {})
-    .filter(([, v]) => v)
-    .map(([k, v]) => `${k}: ${v}`)
-    .join(', ');
-
-  if (profileHint) {
-    messages.splice(1, 0, {
-      role: 'system',
-      content: `Customer profile so far: ${profileHint}`,
-    });
-  }
+  messages.splice(1, 0, ...buildProfileHints(currentProfile));
 
   const budgetHint = buildMessageBudgetHint(messageBudget);
   if (budgetHint) {
