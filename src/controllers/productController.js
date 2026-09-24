@@ -2,7 +2,10 @@ const Product = require('../models/Product');
 
 async function getAllProducts(req, res, next) {
   try {
-    const products = await Product.find({ active: true }).lean();
+    // The list omits the heavy detail fields; GET /:id returns everything.
+    const products = await Product.find({ active: true })
+      .select('-variations -orderForm -pageText -knowledgeText -descriptionHtml')
+      .lean();
     res.json(products);
   } catch (err) {
     next(err);

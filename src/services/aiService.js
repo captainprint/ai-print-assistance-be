@@ -1,6 +1,7 @@
 const openai = require('../config/openai');
 const Product = require('../models/Product');
 const { buildKnowledgeBaseSection } = require('./knowledgeBaseService');
+const { buildCatalogDetailsSection } = require('./catalogRetrievalService');
 const { renderSystemPrompt } = require('../prompts/systemPrompt');
 const { CATEGORY_PAGE_URLS } = require('../config/sitePages');
 
@@ -122,9 +123,14 @@ function buildProfileHints(currentProfile) {
 }
 
 async function buildSystemPrompt(sessionMessages = []) {
-  const [products, knowledgeBaseSection] = await Promise.all([
-    Product.find({ active: true }).lean(),
+  const [products, knowledgeBaseSection, catalogDetails] = await Promise.all([
+    // Only the fields the summary uses — full product docs (variations,
+    // order forms, page text) are megabytes and would slow every chat turn.
+    Product.find({ active: true })
+      .select('name category paperStocks finishes sizes options sourceUrl')
+      .lean(),
     buildKnowledgeBaseSection(lastUserMessage(sessionMessages)),
+    buildCatalogDetailsSection(sessionMessages),
   ]);
   const productSummary = products
     .map((p) => {
@@ -148,7 +154,7 @@ async function buildSystemPrompt(sessionMessages = []) {
     .map((c) => `- ${c}: ${CATEGORY_PAGE_URLS[c]}`)
     .join('\n');
 
-  return renderSystemPrompt({ productSummary, knowledgeBaseSection, categoryPages });
+  return renderSystemPrompt({ productSummary, knowledgeBaseSection, categoryPages, catalogDetails });
 }
 
 async function chat(sessionMessages, currentProfile, messageBudget) {
