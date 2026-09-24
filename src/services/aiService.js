@@ -154,16 +154,46 @@ async function buildSystemPrompt(sessionMessages = []) {
     .map((c) => `- ${c}: ${CATEGORY_PAGE_URLS[c]}`)
     .join('\n');
 
-  return renderSystemPrompt({ productSummary, knowledgeBaseSection, categoryPages, catalogDetails });
+  return {
+    systemPrompt: renderSystemPrompt({ productSummary, knowledgeBaseSection, categoryPages }),
+    catalogDetails,
+  };
 }
 
+// Challenge: with the catalog details inside the (very long) system prompt,
+// gpt-4o-mini kept answering from the older, partial stock lists in Sections
+// 7–8 (e.g. "flyers only come in 100lb" while the details listed 80lb too).
+// Fix: send the details as their own system message right before the
+// customer's latest message, where the model weighs them most.
+function insertCatalogDetails(messages, catalogDetails) {
+  if (!catalogDetails) return;
+  const lastUser = messages.map((m) => m.role).lastIndexOf('user');
+  messages.splice(lastUser === -1 ? messages.length : lastUser, 0, {
+    role: 'system',
+    content: `CATALOG DETAILS (Section 4A) — verified, current data from our website for this conversation. Follow Section 4A on how to use it. Where it differs from Sections 7–9 or from anything said earlier in this conversation, this data is correct.\n\n${catalogDetails}\n\n${CATALOG_RULES_REMINDER}`,
+  });
+}
+
+// Being the last thing the model reads before the customer's message, the
+// catalog data otherwise outweighs rules stated earlier in the system prompt
+// (it started quoting prices/turnaround and skipping contact collection), so
+// the rules that still apply are restated right after it.
+const CATALOG_RULES_REMINDER = `REMINDER — these rules from your instructions still apply to how you use the data above:
+- It is the complete list of options: when listing stocks, finishes, sizes or add-ons, include every one that applies to the customer's case (e.g. both gloss and uncoated, both 80lb and 100lb).
+- Do NOT state any dollar amount from it (prices, add-on charges, per-sq.-ft. rates). For price questions, follow Section 12 and link the page.
+- Do NOT state turnaround or production times from it. Only the Business Card timelines in Section 11 may be given; otherwise follow Rule D.
+- Large Format still follows Rule C (escalation).
+- Contact collection and needsHuman follow Section 14 exactly. Never send the handoff message until name, email and phone have all been collected.
+- This data does not change the conversation flow. Answer the customer's latest message.`;
+
 async function chat(sessionMessages, currentProfile, messageBudget) {
-  const systemPrompt = await buildSystemPrompt(sessionMessages);
+  const { systemPrompt, catalogDetails } = await buildSystemPrompt(sessionMessages);
 
   const messages = [
     { role: 'system', content: systemPrompt },
     ...sessionMessages.map((m) => ({ role: m.role, content: m.content })),
   ];
+  insertCatalogDetails(messages, catalogDetails);
 
   messages.splice(1, 0, ...buildProfileHints(currentProfile));
 
@@ -185,12 +215,13 @@ async function chat(sessionMessages, currentProfile, messageBudget) {
 }
 
 async function* chatStream(sessionMessages, currentProfile, messageBudget) {
-  const systemPrompt = await buildSystemPrompt(sessionMessages);
+  const { systemPrompt, catalogDetails } = await buildSystemPrompt(sessionMessages);
 
   const messages = [
     { role: 'system', content: systemPrompt },
     ...sessionMessages.map((m) => ({ role: m.role, content: m.content })),
   ];
+  insertCatalogDetails(messages, catalogDetails);
 
   messages.splice(1, 0, ...buildProfileHints(currentProfile));
 
