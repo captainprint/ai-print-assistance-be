@@ -1,13 +1,24 @@
 // Challenge: Single rate limit was not enough — bad actors could create many sessions to bypass it.
 // Fix: Six independent layers (per-minute, per-day, session cap, body guard, session creation, in-flight lock).
 const rateLimit = require('express-rate-limit');
+const { chatLimitPayload } = require('../utils/chatLimit');
+
+// Same friendly "try again in N minutes / contact us" response the OpenAI
+// rate limit produces, with the wait taken from this limiter's window.
+function chatLimitHandler(req, res, next, options) {
+  const resetTime = req.rateLimit?.resetTime;
+  const retryAfterSeconds = resetTime
+    ? (new Date(resetTime).getTime() - Date.now()) / 1000
+    : options.windowMs / 1000;
+  res.status(options.statusCode).json(chatLimitPayload(retryAfterSeconds, { staff: Boolean(req.user) }));
+}
 
 const perMinuteLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Slow down — please wait a moment before sending another message.' },
+  handler: chatLimitHandler,
 });
 
 const perDayLimiter = rateLimit({
@@ -15,7 +26,7 @@ const perDayLimiter = rateLimit({
   max: 50,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Daily message limit reached. Please try again tomorrow.' },
+  handler: chatLimitHandler,
 });
 
 const sessionCreationLimiter = rateLimit({

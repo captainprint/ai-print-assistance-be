@@ -24,6 +24,20 @@ function authenticate(req, res, next) {
   }
 }
 
+// For public routes (the customer chat): attaches req.user when a valid
+// staff token is sent, but never rejects the request without one.
+function optionalAuthenticate(req, res, next) {
+  const header = req.headers.authorization;
+  if (header && header.startsWith('Bearer ')) {
+    try {
+      req.user = jwt.verify(header.slice(7), JWT_SECRET);
+    } catch {
+      // invalid/expired token — treat as a regular customer
+    }
+  }
+  next();
+}
+
 function requireAdmin(req, res, next) {
   if (req.user?.role !== 'admin') {
     return res.status(403).json({ message: 'Admin access required' });
@@ -31,4 +45,4 @@ function requireAdmin(req, res, next) {
   next();
 }
 
-module.exports = { signToken, authenticate, requireAdmin };
+module.exports = { signToken, authenticate, optionalAuthenticate, requireAdmin };

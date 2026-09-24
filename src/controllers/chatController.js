@@ -7,6 +7,7 @@ const { attachProductLinks } = require('../services/productService');
 const { notifyHandoff } = require('../services/handoffService');
 const { detectSpam } = require('../services/spamFilterService');
 const { saveCustomerSafely } = require('../services/customerService');
+const { toClientError } = require('../middleware/errorHandler');
 
 function canned(reply, stage) {
   return {
@@ -343,7 +344,7 @@ async function streamMessage(req, res, next) {
       await Session.updateOne({ sessionId: req.body.sessionId }, { processingLock: false });
     } catch {}
     if (!res.headersSent) return next(err);
-    res.write(`event: error\ndata: ${JSON.stringify({ error: err.message })}\n\n`);
+    res.write(`event: error\ndata: ${JSON.stringify(toClientError(err, req).body)}\n\n`);
     res.end();
   }
 }
