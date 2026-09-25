@@ -184,7 +184,48 @@ const CATALOG_RULES_REMINDER = `REMINDER — these rules from your instructions 
 - Do NOT state turnaround or production times from it. Only the Business Card timelines in Section 11 may be given; otherwise follow Rule D.
 - Large Format still follows Rule C (escalation).
 - Contact collection and needsHuman follow Section 14 exactly. Never send the handoff message until name, email and phone have all been collected.
-- This data does not change the conversation flow. Answer the customer's latest message.`;
+- This data does not change the conversation flow. Answer the customer's latest message.
+- Once you've answered, stop. No generic sign-off like "feel free to ask", "let me know if you need anything else" or "how can I help you today?". Only end with a question that moves this conversation forward.`;
+
+// Challenge: gpt-4o-mini tacks a generic sign-off ("If you have any other
+// questions, feel free to ask!", "How can I assist you with your printing
+// needs today?") onto nearly every answer despite the prompt forbidding it,
+// and copies its own earlier sign-offs from the history.
+// Fix: strip trailing generic sign-off sentences before the reply is saved.
+// Questions that move the conversation forward ("Want me to have the team
+// send you a quote?") don't match these patterns and are kept.
+const SIGN_OFF_PATTERNS = [
+  /\bfeel free to (ask|reach out|let me know)\b/i,
+  /\blet me know\b.*\b(anything else|other questions?|need (any )?(more )?help|help (you )?(further|with anything)|if you (need|have)|what you need)\b/i,
+  /^(if|should) you('re| are)? (have|need|want|interested)\b.*\b(let me know|ask|reach out|here to help|happy to help)\b/i,
+  /\b(is there )?anything else (i can|you need|you'd like)\b/i,
+  /^(i'm|i am) (here|happy) to help( with anything else)?[.!]?$/i,
+  /^would you like to know more about our (printing )?(services|products)\??$/i,
+];
+
+// Only a sign-off after a real answer — as the whole reply to a greeting
+// ("Hey there! How can I help with your printing today?") it's the answer.
+const HELP_TODAY = /^how can i (help|assist)( you)?( with your print(ing)?( needs)?)? today\??$/i;
+const MIN_ANSWER_CHARS = 40;
+
+function stripSignOff(message) {
+  if (!message) return message;
+  const sentences = message.trim().match(/[^.!?\n]+[.!?]*\s*|\n+/g);
+  if (!sentences) return message;
+  let end = sentences.length;
+  while (end > 1) {
+    const s = sentences[end - 1].trim();
+    const answered = sentences.slice(0, end - 1).join('').trim().length >= MIN_ANSWER_CHARS;
+    if (!s || SIGN_OFF_PATTERNS.some((re) => re.test(s)) || (answered && HELP_TODAY.test(s))) end--;
+    else break;
+  }
+  return end === sentences.length ? message : sentences.slice(0, end).join('').trim();
+}
+
+function cleanResponse(parsed) {
+  if (parsed?.message) parsed.message = stripSignOff(parsed.message);
+  return parsed;
+}
 
 async function chat(sessionMessages, currentProfile, messageBudget) {
   const { systemPrompt, catalogDetails } = await buildSystemPrompt(sessionMessages);
@@ -211,7 +252,7 @@ async function chat(sessionMessages, currentProfile, messageBudget) {
   });
 
   const raw = response.choices[0].message.content;
-  return JSON.parse(raw);
+  return cleanResponse(JSON.parse(raw));
 }
 
 async function* chatStream(sessionMessages, currentProfile, messageBudget) {
@@ -248,7 +289,7 @@ async function* chatStream(sessionMessages, currentProfile, messageBudget) {
     yield { type: 'token', data: delta };
   }
 
-  const parsed = JSON.parse(buffer);
+  const parsed = cleanResponse(JSON.parse(buffer));
   yield { type: 'done', data: parsed };
 }
 
@@ -313,4 +354,4 @@ async function summarizeConversation(session) {
   return response.choices[0].message.content.trim();
 }
 
-module.exports = { chat, chatStream, summarizeConversation };
+module.exports = { chat, chatStream, summarizeConversation, stripSignOff };
