@@ -51,7 +51,7 @@ const ALIASES = [
   [/\brefunds?\b|\breturns?\b|\breprints?\b|\bdamaged\b|\bwrong order\b/, 'returns refund reprints'],
   [/\bterms\b|\bconditions\b/, 'terms conditions'],
   [/\bprivacy\b/, 'privacy'],
-  [/\bcontact\b|\bphone number\b|\baddress\b|\blocation\b|\bhours\b|\bemail you\b/, 'contact'],
+  [/\bcontact\b|\bphone( number)?\b|\baddress\b|\blocat(ion|ed)\b|\bwhere are you\b|\bhours\b|\bopen\b|\bclosed?\b|\bvisit\b|\bemail you\b/, 'contact'],
   [/\bquotes?\b|\bexisting order\b|\border status\b/, 'quotes orders'],
   [/\babout (you|us|the company)\b|\bsince\b|\bhistory\b/, 'about'],
   [/\bemboss(ed|ing)?\b|\bdeboss(ed|ing)?\b|\bdie[- ]?cut(ting)?\b|\bbinding\b|\bsaddle\b|\bcoil\b|\bwire-?o\b|\bfoil stamping\b/, 'finishing'],
