@@ -9,6 +9,7 @@ const recommendationSchema = new mongoose.Schema({
   priceRange: String,
   tags: [String],
   productUrl: { type: String, default: null },
+  contactUrl: { type: String, default: null },
 }, { _id: false });
 
 const matchedImageSchema = new mongoose.Schema({

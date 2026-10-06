@@ -1,5 +1,6 @@
 const Product = require('../models/Product');
 const { escapeRegExp } = require('../utils/regexUtils');
+const { CONTACT_US_URL } = require('../config/sitePages');
 
 // Several catalog names collide (e.g. two separate "Flyers" listings, four
 // "Hoodies" listings) — each a distinct WooCommerce product with its own
@@ -45,13 +46,23 @@ async function findMatchingProduct(productType, select) {
   return candidates[0];
 }
 
+const NO_LINK_PRICE_TEXT = 'Contact us for pricing and more details.';
+
 async function attachProductLinks(recommendations) {
   if (!recommendations || recommendations.length === 0) return recommendations;
 
   return Promise.all(
     recommendations.map(async (rec) => {
       const product = await findMatchingProduct(rec.productType, 'sourceUrl');
-      return { ...rec, productUrl: product?.sourceUrl || null };
+      const productUrl = product?.sourceUrl || null;
+      // The default priceRange points the customer to "the product link below";
+      // when no product matched there is no link, so swap in a contact message
+      // and give the card a Contact Us link instead. A verified price quoted by
+      // the AI (no mention of a link) is kept as-is.
+      const priceRange = !productUrl && (!rec.priceRange || /\blink\b/i.test(rec.priceRange))
+        ? NO_LINK_PRICE_TEXT
+        : rec.priceRange;
+      return { ...rec, priceRange, productUrl, contactUrl: productUrl ? null : CONTACT_US_URL };
     })
   );
 }
