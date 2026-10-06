@@ -56,13 +56,13 @@ async function attachProductLinks(recommendations) {
       const product = await findMatchingProduct(rec.productType, 'sourceUrl');
       const productUrl = product?.sourceUrl || null;
       // The default priceRange points the customer to "the product link below";
-      // when no product matched there is no link, so swap in a contact message
-      // and give the card a Contact Us link instead. A verified price quoted by
-      // the AI (no mention of a link) is kept as-is.
+      // when no product matched there is no link, so swap in a contact message.
+      // A verified price quoted by the AI (no mention of a link) is kept as-is.
+      // contactUrl lets the card turn the leading "Contact us" into a link.
       const priceRange = !productUrl && (!rec.priceRange || /\blink\b/i.test(rec.priceRange))
         ? NO_LINK_PRICE_TEXT
         : rec.priceRange;
-      return { ...rec, priceRange, productUrl, contactUrl: productUrl ? null : CONTACT_US_URL };
+      return { ...rec, priceRange, productUrl, contactUrl: CONTACT_US_URL };
     })
   );
 }
