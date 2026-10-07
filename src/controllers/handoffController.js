@@ -2,6 +2,7 @@ const User = require('../models/User');
 const Session = require('../models/Session');
 const HandoffToken = require('../models/HandoffToken');
 const CustomerToken = require('../models/CustomerToken');
+const Customer = require('../models/Customer');
 const {
   sendConversationClaimedEmail,
   sendCustomerReplyEmail,
@@ -81,6 +82,24 @@ async function ensureSummary(session) {
   }
 }
 
+// Only the latest entry of each thread is needed to build the list preview.
+const SUMMARY_FIELDS = {
+  sessionId: 1,
+  status: 1,
+  humanReason: 1,
+  customerProfile: 1,
+  assignedTo: 1,
+  acceptedAt: 1,
+  closedAt: 1,
+  handoffNotifiedAt: 1,
+  createdAt: 1,
+  deletedAt: 1,
+  deletedBy: 1,
+  messages: { $slice: -1 },
+  staffReplies: { $slice: -1 },
+  customerReplies: { $slice: -1 },
+};
+
 async function listConversations(req, res, next) {
   try {
     const { status = 'all', page = 1, limit = 10 } = req.query;
@@ -95,6 +114,7 @@ async function listConversations(req, res, next) {
     // has typed anything — don't clutter the list with those until there's
     // an actual message to show.
     query.userMessageCount = { $gt: 0 };
+    query.deletedAt = null;
 
     if (status === 'unassigned') query.assignedTo = null;
     else if (status === 'assigned') query.assignedTo = { $ne: null };
@@ -110,20 +130,7 @@ async function listConversations(req, res, next) {
     const [sessions, total] = await Promise.all([
       Session.find(query)
         .populate('assignedTo', 'fullName email role')
-        .select({
-          sessionId: 1,
-          status: 1,
-          humanReason: 1,
-          customerProfile: 1,
-          assignedTo: 1,
-          acceptedAt: 1,
-          closedAt: 1,
-          handoffNotifiedAt: 1,
-          createdAt: 1,
-          messages: { $slice: -1 },
-          staffReplies: { $slice: -1 },
-          customerReplies: { $slice: -1 },
-        })
+        .select(SUMMARY_FIELDS)
         .sort({ createdAt: -1 })
         .skip((Number(page) - 1) * Number(limit))
         .limit(Number(limit))
@@ -154,7 +161,7 @@ function canStaffAccess(req, session) {
 
 async function getConversation(req, res, next) {
   try {
-    const session = await Session.findOne({ sessionId: req.params.sessionId })
+    const session = await Session.findOne({ sessionId: req.params.sessionId, deletedAt: null })
       .populate('assignedTo', 'fullName email role');
     if (!session) return res.status(404).json({ message: 'Conversation not found' });
     if (!canStaffAccess(req, session)) {
@@ -175,7 +182,7 @@ async function viewViaToken(req, res, next) {
     });
     if (!record) return res.status(404).json({ message: 'Link is invalid or has expired' });
 
-    const session = await Session.findOne({ sessionId: record.sessionId })
+    const session = await Session.findOne({ sessionId: record.sessionId, deletedAt: null })
       .populate('assignedTo', 'fullName email role');
     if (!session) return res.status(404).json({ message: 'Conversation not found' });
 
@@ -194,7 +201,7 @@ async function acceptConversation(req, res, next) {
     });
     if (!record) return res.status(404).json({ message: 'Link is invalid or has expired' });
 
-    const session = await Session.findOne({ sessionId: record.sessionId });
+    const session = await Session.findOne({ sessionId: record.sessionId, deletedAt: null });
     if (!session) return res.status(404).json({ message: 'Conversation not found' });
 
     if (session.assignedTo) {
@@ -297,7 +304,7 @@ async function assignConversation(req, res, next) {
     });
     if (!record) return res.status(404).json({ message: 'Link is invalid or has expired' });
 
-    const session = await Session.findOne({ sessionId: record.sessionId });
+    const session = await Session.findOne({ sessionId: record.sessionId, deletedAt: null });
     if (!session) return res.status(404).json({ message: 'Conversation not found' });
 
     const result = await assignSessionToUser(session, userId, await resolveAssigner(req));
@@ -314,7 +321,7 @@ async function assignConversationBySession(req, res, next) {
     const { userId } = req.body;
     if (!userId) return res.status(400).json({ message: 'userId is required' });
 
-    const session = await Session.findOne({ sessionId: req.params.sessionId });
+    const session = await Session.findOne({ sessionId: req.params.sessionId, deletedAt: null });
     if (!session) return res.status(404).json({ message: 'Conversation not found' });
     if (!canStaffAccess(req, session)) {
       return res.status(403).json({ message: 'You do not have access to this conversation' });
@@ -331,7 +338,7 @@ async function assignConversationBySession(req, res, next) {
 
 async function unassignConversation(req, res, next) {
   try {
-    const session = await Session.findOne({ sessionId: req.params.sessionId });
+    const session = await Session.findOne({ sessionId: req.params.sessionId, deletedAt: null });
     if (!session) return res.status(404).json({ message: 'Conversation not found' });
     if (!canStaffAccess(req, session)) {
       return res.status(403).json({ message: 'You do not have access to this conversation' });
@@ -362,7 +369,7 @@ async function staffReply(req, res, next) {
       return res.status(400).json({ message: 'Message is required' });
     }
 
-    const session = await Session.findOne({ sessionId: req.params.sessionId });
+    const session = await Session.findOne({ sessionId: req.params.sessionId, deletedAt: null });
     if (!session) return res.status(404).json({ message: 'Conversation not found' });
     if (!canStaffAccess(req, session)) {
       return res.status(403).json({ message: 'You do not have access to this conversation' });
@@ -402,7 +409,7 @@ async function staffReply(req, res, next) {
 
 async function closeConversation(req, res, next) {
   try {
-    const session = await Session.findOne({ sessionId: req.params.sessionId });
+    const session = await Session.findOne({ sessionId: req.params.sessionId, deletedAt: null });
     if (!session) return res.status(404).json({ message: 'Conversation not found' });
     if (!canStaffAccess(req, session)) {
       return res.status(403).json({ message: 'You do not have access to this conversation' });
@@ -417,6 +424,94 @@ async function closeConversation(req, res, next) {
     await session.save();
 
     res.json({ success: true, closedAt: session.closedAt });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Admin only — moves a conversation to the trash (soft delete).
+async function trashConversation(req, res, next) {
+  try {
+    const session = await Session.findOneAndUpdate(
+      { sessionId: req.params.sessionId, deletedAt: null },
+      { deletedAt: new Date(), deletedBy: req.user.id || null },
+      { new: true }
+    );
+    if (!session) return res.status(404).json({ message: 'Conversation not found' });
+
+    res.json({ success: true, deletedAt: session.deletedAt });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Admin only — brings a trashed conversation back into the inbox.
+async function restoreConversation(req, res, next) {
+  try {
+    const session = await Session.findOneAndUpdate(
+      { sessionId: req.params.sessionId, deletedAt: { $ne: null } },
+      { deletedAt: null, deletedBy: null },
+      { new: true }
+    );
+    if (!session) return res.status(404).json({ message: 'Conversation not found in trash' });
+
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Admin only — permanently removes a conversation that is already in the
+// trash, along with its handoff/customer links. The Customer contact record
+// is kept; only its reference to this session is dropped.
+async function deleteConversationForever(req, res, next) {
+  try {
+    const { sessionId } = req.params;
+    const result = await Session.deleteOne({ sessionId, deletedAt: { $ne: null } });
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ message: 'Conversation not found in trash' });
+    }
+
+    await Promise.all([
+      HandoffToken.deleteMany({ sessionId }),
+      CustomerToken.deleteMany({ sessionId }),
+      Customer.updateMany({ sessionIds: sessionId }, { $pull: { sessionIds: sessionId } }),
+    ]);
+
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Admin only — lists trashed conversations, most recently deleted first.
+async function listTrashedConversations(req, res, next) {
+  try {
+    const { page = 1, limit = 20 } = req.query;
+    const query = { deletedAt: { $ne: null } };
+
+    const [sessions, total] = await Promise.all([
+      Session.find(query)
+        .populate('assignedTo', 'fullName email role')
+        .populate('deletedBy', 'fullName email')
+        .select(SUMMARY_FIELDS)
+        .sort({ deletedAt: -1 })
+        .skip((Number(page) - 1) * Number(limit))
+        .limit(Number(limit))
+        .lean(),
+      Session.countDocuments(query),
+    ]);
+
+    res.json({
+      conversations: sessions.map((s) => ({
+        ...sessionSummary(s),
+        deletedAt: s.deletedAt,
+        deletedBy: s.deletedBy ? { _id: s.deletedBy._id, fullName: s.deletedBy.fullName } : null,
+      })),
+      total,
+      page: Number(page),
+      pages: Math.ceil(total / Number(limit)),
+    });
   } catch (err) {
     next(err);
   }
@@ -576,6 +671,10 @@ module.exports = {
   unassignConversation,
   staffReply,
   closeConversation,
+  trashConversation,
+  restoreConversation,
+  deleteConversationForever,
+  listTrashedConversations,
   listAssignableUsers,
   customerResume,
   customerReply,

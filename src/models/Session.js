@@ -90,6 +90,10 @@ const sessionSchema = new mongoose.Schema({
   summary: { type: String, default: null },
   summaryGeneratedAt: { type: Date, default: null },
   summaryMessageCount: { type: Number, default: 0 },
+  // Soft delete: admin can move a conversation to the trash and restore it
+  // later. Trashed sessions are hidden from every staff view/action.
+  deletedAt: { type: Date, default: null, index: true },
+  deletedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
 }, { timestamps: true });
 
 module.exports = mongoose.model('Session', sessionSchema);

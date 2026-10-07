@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { authenticate } = require('../middleware/auth');
+const { authenticate, requireAdmin } = require('../middleware/auth');
 const {
   listConversations,
   getConversation,
@@ -11,6 +11,10 @@ const {
   unassignConversation,
   staffReply,
   closeConversation,
+  trashConversation,
+  restoreConversation,
+  deleteConversationForever,
+  listTrashedConversations,
   listAssignableUsers,
   customerResume,
   customerReply,
@@ -30,6 +34,12 @@ router.post('/conversations/:sessionId/assign', authenticate, assignConversation
 router.post('/unassign/:sessionId', authenticate, unassignConversation);
 router.post('/reply/:sessionId', authenticate, staffReply);
 router.post('/close/:sessionId', authenticate, closeConversation);
+
+// Admin-only trash: soft delete, list, restore, and permanent delete
+router.delete('/conversations/:sessionId', authenticate, requireAdmin, trashConversation);
+router.get('/trash', authenticate, requireAdmin, listTrashedConversations);
+router.post('/trash/:sessionId/restore', authenticate, requireAdmin, restoreConversation);
+router.delete('/trash/:sessionId', authenticate, requireAdmin, deleteConversationForever);
 
 // Customer token routes — no JWT, token-based only
 router.get('/resume/:customerToken', customerResume);
