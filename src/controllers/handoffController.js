@@ -10,6 +10,7 @@ const {
 } = require('../services/emailService');
 const { notifyHandoff } = require('../services/handoffService');
 const { summarizeConversation } = require('../services/aiService');
+const { sendSessionDeleted } = require('../utils/deletedSession');
 
 function sessionSummary(session) {
   const latest = [
@@ -543,6 +544,7 @@ async function customerResume(req, res, next) {
     const session = await Session.findOne({ sessionId: tokenDoc.sessionId })
       .populate('assignedTo', 'fullName');
     if (!session) return res.status(404).json({ message: 'Session not found' });
+    if (session.deletedAt) return sendSessionDeleted(res);
 
     res.json({
       sessionId: session.sessionId,
@@ -612,6 +614,7 @@ async function customerReply(req, res, next) {
     const session = await Session.findOne({ sessionId: tokenDoc.sessionId })
       .populate('assignedTo', 'fullName email');
     if (!session) return res.status(404).json({ message: 'Session not found' });
+    if (session.deletedAt) return sendSessionDeleted(res);
 
     if (session.closedAt) {
       return res.status(400).json({ message: 'This conversation has been closed by our team. Please start a new chat.' });
@@ -644,6 +647,7 @@ async function customerReplyBySession(req, res, next) {
     const session = await Session.findOne({ sessionId: req.params.sessionId })
       .populate('assignedTo', 'fullName email');
     if (!session) return res.status(404).json({ message: 'Session not found' });
+    if (session.deletedAt) return sendSessionDeleted(res);
 
     if (session.closedAt) {
       return res.status(400).json({ message: 'This conversation has been closed by our team. Please start a new chat.' });

@@ -1,6 +1,7 @@
 const { v4: uuidv4 } = require('uuid');
 const Session = require('../models/Session');
 const { MAX_USER_MESSAGES } = require('../models/Session');
+const { sendSessionDeleted } = require('../utils/deletedSession');
 const { chat, chatStream } = require('../services/aiService');
 const { getMatchingImages } = require('../services/imageService');
 const { attachProductLinks } = require('../services/productService');
@@ -57,6 +58,7 @@ async function getSession(req, res, next) {
   try {
     const session = await Session.findOne({ sessionId: req.params.sessionId }).lean();
     if (!session) return res.status(404).json({ error: 'Session not found' });
+    if (session.deletedAt) return sendSessionDeleted(res);
     res.json(session);
   } catch (err) {
     next(err);
@@ -65,7 +67,8 @@ async function getSession(req, res, next) {
 
 async function clearSession(req, res, next) {
   try {
-    await Session.deleteOne({ sessionId: req.params.sessionId });
+    // Leave trashed conversations alone — only an admin can purge those.
+    await Session.deleteOne({ sessionId: req.params.sessionId, deletedAt: null });
     res.json({ success: true });
   } catch (err) {
     next(err);
@@ -76,6 +79,7 @@ async function closeSessionByCustomer(req, res, next) {
   try {
     const session = await Session.findOne({ sessionId: req.params.sessionId });
     if (!session) return res.status(404).json({ error: 'Session not found' });
+    if (session.deletedAt) return sendSessionDeleted(res);
     session.status = 'completed';
     session.closedAt = session.closedAt || new Date();
     await session.save();
@@ -97,6 +101,7 @@ async function sendMessage(req, res, next) {
     if (!session) {
       session = await Session.create({ sessionId });
     }
+    if (session.deletedAt) return sendSessionDeleted(res);
 
     if (session.status === 'human_required') {
       return res.json({
@@ -212,6 +217,7 @@ async function streamMessage(req, res, next) {
     if (!session) {
       session = await Session.create({ sessionId });
     }
+    if (session.deletedAt) return sendSessionDeleted(res);
 
     if (session.status === 'human_required') {
       res.setHeader('Content-Type', 'text/event-stream');
