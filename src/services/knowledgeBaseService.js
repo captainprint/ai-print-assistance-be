@@ -3,6 +3,7 @@ const mammoth = require('mammoth');
 const WordExtractor = require('word-extractor');
 const XLSX = require('xlsx');
 const KnowledgeBase = require('../models/KnowledgeBase');
+const { redactTextPrices } = require('./priceRedaction');
 
 const MAX_STORED_CHARS = 150_000; // cap on what we persist per file
 const PER_FILE_PROMPT_CHARS = 8_000; // cap per file when injected into the prompt
@@ -70,6 +71,10 @@ async function buildKnowledgeBaseSection(queryText = '') {
     .lean();
 
   if (files.length === 0) return '';
+
+  // Prices are removed before budgeting so the char allocations below match
+  // what the model actually receives (see priceRedaction.js).
+  for (const file of files) file.extractedText = redactTextPrices(file.extractedText || '');
 
   const queryTokens = tokenize(queryText);
   const ranked = files

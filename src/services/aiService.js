@@ -4,6 +4,7 @@ const { buildKnowledgeBaseSection } = require('./knowledgeBaseService');
 const { buildCatalogDetailsSection } = require('./catalogRetrievalService');
 const { renderSystemPrompt } = require('../prompts/systemPrompt');
 const { CATEGORY_PAGE_URLS } = require('../config/sitePages');
+const { getOfficeStatus, OFFICE_HOURS_TEXT } = require('../config/officeHours');
 
 const MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 
@@ -92,7 +93,35 @@ function buildMessageBudgetHint(messageBudget) {
   return `Heads up: this conversation is close to its message limit (${messageBudget.count}/${messageBudget.max} messages used). Start wrapping up now — move toward a recommendation or collecting contact info instead of asking more discovery questions.`;
 }
 
-const CONTACT_FIELDS = ['name', 'email', 'phone'];
+// Challenge: the model has no clock, so the handoff message promised "I'll
+// check if someone from our team is free to help you right now" even at
+// 8 AM or on a Sunday, when nobody was in. Letting the model phrase the
+// timing itself wasn't reliable either: it copied example days from the
+// prompt ("tomorrow (Wednesday)" at 8 AM on a Tuesday) or used the "open"
+// wording on a Saturday.
+// Fix: work out the office status here and hand the model the exact
+// sentences to use (Section 14 tells it to use them).
+function buildOfficeHoursHint(now = new Date()) {
+  const { open, localTime, nextOpening } = getOfficeStatus(now);
+  const ask = open
+    ? "Please share your name and email (and a phone number if you'd prefer a call), and one of our team members will contact you at the earliest time possible."
+    : `Our office hours are ${OFFICE_HOURS_TEXT}, so the team is out right now. Please leave your name and email (and a phone number if you'd prefer a call), and one of our team members will contact you ${nextOpening}.`;
+  const handoff = open
+    ? "Thanks, {first name}! I've passed your details to our team, and one of our team members will contact you at the earliest time possible."
+    : `Thanks, {first name}! I've passed your details to our team. Our office is closed right now, so one of our team members will contact you ${nextOpening}.`;
+  return {
+    role: 'system',
+    content: [
+      `Office status: ${open ? 'OPEN' : 'CLOSED'} (it is ${localTime}, Eastern Time; office hours: ${OFFICE_HOURS_TEXT}).`,
+      `CONTACT REQUEST wording (Section 14) — use this, adding a short friendly lead-in like "I'd be glad to connect you with our team!": "${ask}"`,
+      `HANDOFF MESSAGE wording (Section 14), only once name and email are both collected (phone is optional): "${handoff}"`,
+      'Do not change the day or time in these sentences.',
+    ].join('\n'),
+  };
+}
+
+// Name and email are required for a handoff; phone is optional.
+const REQUIRED_CONTACT_FIELDS = ['name', 'email'];
 
 // Challenge: the profile hint only listed fields that had values, so the model
 // never saw name/email/phone as missing and would jump straight to the handoff
@@ -110,13 +139,14 @@ function buildProfileHints(currentProfile) {
     hints.push({ role: 'system', content: `Customer profile so far: ${profileHint}` });
   }
 
-  const missing = CONTACT_FIELDS.filter((f) => !profile[f]);
-  const collected = CONTACT_FIELDS.filter((f) => profile[f]);
+  const missing = REQUIRED_CONTACT_FIELDS.filter((f) => !profile[f]);
+  const collected = [...REQUIRED_CONTACT_FIELDS, 'phone'].filter((f) => profile[f]);
+  const phoneNote = profile.phone ? '' : ' Phone is optional and not provided — do not ask for it again or wait for it.';
   hints.push({
     role: 'system',
     content: missing.length
-      ? `Contact info status — collected: ${collected.join(', ') || 'none'}; missing: ${missing.join(', ')}. Do not send the handoff message or set needsHuman to true until nothing is missing.`
-      : 'Contact info status — name, email, and phone are all collected.',
+      ? `Contact info status — collected: ${collected.join(', ') || 'none'}; missing (required): ${missing.join(', ')}. Do not send the handoff message or set needsHuman to true until name and email are both collected.${phoneNote}`
+      : `Contact info status — required name and email are collected${profile.phone ? ', plus phone' : ''}. If the customer is being connected to the team, send the handoff message now.${phoneNote}`,
   });
 
   return hints;
@@ -183,7 +213,7 @@ const CATALOG_RULES_REMINDER = `REMINDER — these rules from your instructions 
 - Do NOT state any dollar amount from it (prices, add-on charges, per-sq.-ft. rates). For price questions, follow Section 12 and link the page.
 - Do NOT state turnaround or production times from it. Only the Business Card timelines in Section 11 may be given; otherwise follow Rule D.
 - Large Format still follows Rule C (escalation).
-- Contact collection and needsHuman follow Section 14 exactly. Never send the handoff message until name, email and phone have all been collected.
+- Contact collection and needsHuman follow Section 14 exactly. Never send the handoff message until name and email have both been collected (phone is optional).
 - This data does not change the conversation flow. Answer the customer's latest message.
 - Once you've answered, stop. No generic sign-off like "feel free to ask", "let me know if you need anything else" or "how can I help you today?". Only end with a question that moves this conversation forward.`;
 
@@ -236,7 +266,7 @@ async function chat(sessionMessages, currentProfile, messageBudget) {
   ];
   insertCatalogDetails(messages, catalogDetails);
 
-  messages.splice(1, 0, ...buildProfileHints(currentProfile));
+  messages.splice(1, 0, buildOfficeHoursHint(), ...buildProfileHints(currentProfile));
 
   const budgetHint = buildMessageBudgetHint(messageBudget);
   if (budgetHint) {
@@ -264,7 +294,7 @@ async function* chatStream(sessionMessages, currentProfile, messageBudget) {
   ];
   insertCatalogDetails(messages, catalogDetails);
 
-  messages.splice(1, 0, ...buildProfileHints(currentProfile));
+  messages.splice(1, 0, buildOfficeHoursHint(), ...buildProfileHints(currentProfile));
 
   const budgetHint = buildMessageBudgetHint(messageBudget);
   if (budgetHint) {

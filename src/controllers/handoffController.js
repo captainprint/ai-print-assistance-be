@@ -11,6 +11,7 @@ const {
 const { notifyHandoff } = require('../services/handoffService');
 const { summarizeConversation } = require('../services/aiService');
 const { sendSessionDeleted } = require('../utils/deletedSession');
+const { runAfterResponse } = require('../utils/background');
 
 function sessionSummary(session) {
   const latest = [
@@ -234,11 +235,11 @@ async function acceptConversation(req, res, next) {
       .filter((e) => e !== staffEmail && e !== record.staffEmail);
 
     if (otherEmails.length > 0) {
-      sendConversationClaimedEmail({
+      runAfterResponse(sendConversationClaimedEmail({
         toList: [...new Set(otherEmails)],
         claimedByName: staffName,
         session,
-      }).catch((err) => console.error('[handoff] Claimed email failed:', err.message));
+      }), 'handoff claimed email');
     }
 
     res.json({
@@ -262,14 +263,14 @@ async function notifyAssignment(session, targetUser, assigner) {
     expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
   });
 
-  sendStaffAssignedEmail({
+  runAfterResponse(sendStaffAssignedEmail({
     to: targetUser.email,
     staffName: targetUser.fullName,
     assignedByName: assigner.name,
     isSelfAssigned: assigner.id !== null && String(assigner.id) === String(targetUser._id),
     session,
     handoffToken: newToken,
-  }).catch((err) => console.error('[handoff] Assign email failed:', err.message));
+  }), 'handoff assign email');
 }
 
 // Admin logs in without a User record (no req.user.id), so it's named "Admin".
@@ -394,12 +395,12 @@ async function staffReply(req, res, next) {
     }).sort({ createdAt: -1 });
 
     if (customerTokenDoc && session.customerProfile?.email) {
-      sendCustomerReplyEmail({
+      runAfterResponse(sendCustomerReplyEmail({
         session,
         staffReply: message.trim(),
         customerToken: customerTokenDoc.token,
         staffName,
-      }).catch((err) => console.error('[handoff] Staff reply email failed:', err.message));
+      }), 'handoff staff reply email');
     }
 
     res.json({ success: true, message: 'Reply sent and customer notified by email' });
@@ -563,38 +564,36 @@ async function customerResume(req, res, next) {
 async function notifyStaffOfCustomerReply(session, message) {
   // Notify assigned staff, or all staff if unassigned
   if (session.assignedTo?.email) {
-    sendStaffCustomerRepliedEmail({
+    runAfterResponse(sendStaffCustomerRepliedEmail({
       toEmail: session.assignedTo.email,
       staffName: session.assignedTo.fullName,
       session,
       customerReply: message,
-    }).catch((err) => console.error('[handoff] Customer reply notify failed:', err.message));
+    }), 'handoff customer reply notify');
     return;
   }
 
   // All active staff — including admin-role accounts, not just role: 'user'.
-  User.find({ isActive: true })
+  runAfterResponse(User.find({ isActive: true })
     .select('fullName email')
     .lean()
-    .then((users) => {
-      users.forEach((u) => {
-        sendStaffCustomerRepliedEmail({
-          toEmail: u.email,
-          staffName: u.fullName,
-          session,
-          customerReply: message,
-        }).catch((err) => console.error(`[handoff] Notify ${u.email} failed:`, err.message));
-      });
-    });
+    .then((users) => Promise.all(users.map((u) =>
+      sendStaffCustomerRepliedEmail({
+        toEmail: u.email,
+        staffName: u.fullName,
+        session,
+        customerReply: message,
+      }).catch((err) => console.error(`[handoff] Notify ${u.email} failed:`, err.message))
+    ))), 'handoff customer reply notify (all staff)');
 
   const adminEmail = process.env.ADMIN_EMAIL;
   if (adminEmail) {
-    sendStaffCustomerRepliedEmail({
+    runAfterResponse(sendStaffCustomerRepliedEmail({
       toEmail: adminEmail,
       staffName: 'Admin',
       session,
       customerReply: message,
-    }).catch(() => {});
+    }), 'handoff customer reply notify (admin)');
   }
 }
 

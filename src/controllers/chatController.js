@@ -6,6 +6,7 @@ const { chat, chatStream } = require('../services/aiService');
 const { getMatchingImages } = require('../services/imageService');
 const { attachProductLinks } = require('../services/productService');
 const { notifyHandoff } = require('../services/handoffService');
+const { runAfterResponse } = require('../utils/background');
 const { detectSpam } = require('../services/spamFilterService');
 const { saveCustomerSafely } = require('../services/customerService');
 const { toClientError } = require('../middleware/errorHandler');
@@ -25,9 +26,11 @@ function canned(reply, stage) {
 // asks for name/email/phone, before actually collecting them, locking the
 // session into human_required with no contact info ever saved.
 // Fix: never trust needsHuman unless contact info is actually present.
+// Name and email are required; phone is optional (customers who'd rather not
+// share it are still handed off, and the team follows up by email).
 function hasCompleteContactInfo(session) {
   const profile = session.customerProfile;
-  return !!(profile && profile.name && profile.email && profile.phone);
+  return !!(profile && profile.name && profile.email);
 }
 
 // Challenge: the model's customerProfile fields are typed ["string", "null"]
@@ -184,9 +187,7 @@ async function sendMessage(req, res, next) {
     if (contactChanged) await saveCustomerSafely(session);
 
     if (needsHuman && !wasHumanRequired) {
-      notifyHandoff(session).catch((err) =>
-        console.error('[handoff] Notification failed:', err.message)
-      );
+      runAfterResponse(notifyHandoff(session), 'handoff notification');
     }
 
     res.json({
@@ -328,9 +329,7 @@ async function streamMessage(req, res, next) {
     if (contactChanged) await saveCustomerSafely(session);
 
     if (needsHuman && !wasHumanRequiredStream) {
-      notifyHandoff(session).catch((err) =>
-        console.error('[handoff] Notification failed:', err.message)
-      );
+      runAfterResponse(notifyHandoff(session), 'handoff notification');
     }
 
     const finalPayload = JSON.stringify({

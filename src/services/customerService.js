@@ -1,15 +1,16 @@
 const Customer = require('../models/Customer');
 
 // Upserts by email so a returning customer updates their existing record
-// (latest name/phone win) instead of creating a duplicate.
+// (latest name/phone win) instead of creating a duplicate. Phone is optional:
+// it's only set when given, so a returning customer's saved phone is kept.
 async function saveCustomerFromSession(session) {
   const { name, email, phone } = session.customerProfile || {};
-  if (!name || !email || !phone) return null;
+  if (!name || !email) return null;
 
   const upsert = () => Customer.findOneAndUpdate(
     { email: String(email).trim().toLowerCase() },
     {
-      $set: { name, phone, lastSeenAt: new Date() },
+      $set: { name, ...(phone ? { phone } : {}), lastSeenAt: new Date() },
       $addToSet: { sessionIds: session.sessionId },
     },
     { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true }

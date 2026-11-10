@@ -9,6 +9,7 @@
     "sync": "node src/data/sync.js"
   },
   "dependencies": {
+    "@vercel/functions": "3.10.1",
     "axios": "^1.18.0",
     "bcryptjs": "^3.0.3",
     "cheerio": "^1.2.0",

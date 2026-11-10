@@ -2,6 +2,7 @@ const Product = require('../models/Product');
 const SiteMenu = require('../models/SiteMenu');
 const SitePage = require('../models/SitePage');
 const { buildMenuKnowledge } = require('./catalogKnowledge');
+const { redactCatalogPrices } = require('./priceRedaction');
 
 // The full scraped catalog is ~1.1M characters — far too much for every
 // prompt. Per chat turn we pick the products/pages the conversation is about
@@ -12,6 +13,7 @@ const TOTAL_BUDGET_CHARS = 60_000;
 const PER_DOC_BUDGET_CHARS = 30_000;
 const MAX_DOCS = 4;
 const RECENT_USER_MESSAGES = 3;
+
 
 // Words too generic to identify a product on their own.
 const STOPWORDS = new Set([
@@ -231,7 +233,7 @@ async function buildCatalogDetailsSection(sessionMessages = []) {
     ? parts.join('\n\n---\n\n')
     : '(No specific product or page matched this conversation yet. If the customer asks about a product, ask which one they mean — its full details will then be provided.)';
 
-  return `${menuText}\n\n${body}`;
+  return redactCatalogPrices(`${menuText}\n\n${body}`);
 }
 
 module.exports = { buildCatalogDetailsSection };
